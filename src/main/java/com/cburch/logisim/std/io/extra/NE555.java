@@ -61,15 +61,15 @@ public class NE555 extends InstanceFactory {
   public static final Attribute<Integer> ATTR_C1 = Attributes.forInteger("c1",
       S.getter("ne555CapacitorC1Attr"));
 
-  public static final double FIXED_RFIXED = 1000.0; // 1 kOhm standard pull-up resistor from VCC
+  public static final double FIXED_RFIXED = 1000.0; // 1 kOhm, fixed pull-up from VCC
 
-  public static final int MIN_R1_OHM = 100;          // 100 Ohm
-  public static final int MAX_R1_OHM = 10_000_000;   // 10 MOhm
-  public static final int DEFAULT_R1_OHM = 71_660;   // 71.66 kOhm gives T ≈ 1.00 s
+  public static final int MIN_R1_OHM = 100;
+  public static final int MAX_R1_OHM = 10_000_000;
+  public static final int DEFAULT_R1_OHM = 71_660;   // ~71.66 kOhm gives T ≈ 1 s
 
-  public static final int MIN_C1_UF = 1;             // 1 uF (minimum integer uF)
-  public static final int MAX_C1_UF = 1000;          // 1000 uF
-  public static final int DEFAULT_C1_UF = 10;        // 10 uF (gives T ≈ 1.00 s with R1 = 71.66 kOhm)
+  public static final int MIN_C1_UF = 1;
+  public static final int MAX_C1_UF = 1000;
+  public static final int DEFAULT_C1_UF = 10;
 
   private static final double DEFAULT_VCC = 5.0;
   private static final double TIMER_INTERVAL_SEC = 0.010;
@@ -166,20 +166,20 @@ public class NE555 extends InstanceFactory {
   }
 
   private static AttributeOption getMode(AttributeSet attrs) {
-    final var m = attrs.getValue(ATTR_MODE);
-    return m != null ? m : MODE_ASTABLE;
+    final var mode = attrs.getValue(ATTR_MODE);
+    return mode != null ? mode : MODE_ASTABLE;
   }
 
   public static double getResistanceOhm(AttributeSet attrs) {
-    final var rOhm = attrs.getValue(ATTR_R1);
-    final var val = (rOhm == null) ? DEFAULT_R1_OHM : Math.max(MIN_R1_OHM, Math.min(MAX_R1_OHM, rOhm));
-    return (double) val;
+    final var raw = attrs.getValue(ATTR_R1);
+    final var clamped = (raw == null) ? DEFAULT_R1_OHM : Math.max(MIN_R1_OHM, Math.min(MAX_R1_OHM, raw));
+    return (double) clamped;
   }
 
   public static double getCapFarad(AttributeSet attrs) {
-    final var cUf = attrs.getValue(ATTR_C1);
-    final var val = (cUf == null) ? DEFAULT_C1_UF : Math.max(MIN_C1_UF, Math.min(MAX_C1_UF, cUf));
-    return val * 1e-6;
+    final var raw = attrs.getValue(ATTR_C1);
+    final var clamped = (raw == null) ? DEFAULT_C1_UF : Math.max(MIN_C1_UF, Math.min(MAX_C1_UF, raw));
+    return clamped * 1e-6;
   }
 
   private static double getVcc() {
@@ -270,26 +270,26 @@ public class NE555 extends InstanceFactory {
   @Override
   public void paintGhost(InstancePainter painter) {
     final var g = painter.getGraphics();
-    final var bds = painter.getBounds();
+    final var bounds = painter.getBounds();
     GraphicsUtil.switchToWidth(g, 2);
     g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
-    g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), 8, 8);
+    g.drawRoundRect(bounds.getX(), bounds.getY(), bounds.getWidth(), bounds.getHeight(), 8, 8);
     GraphicsUtil.switchToWidth(g, 1);
   }
 
   @Override
   public void paintInstance(InstancePainter painter) {
     final var g = painter.getGraphics();
-    final var bds = painter.getBounds();
+    final var bounds = painter.getBounds();
     final var showState = painter.getShowState();
-    final var s = (NE555State) painter.getData();
+    final var ne555State = (NE555State) painter.getData();
     final var attrs = painter.getAttributeSet();
     final var mode = getMode(attrs);
 
-    final var x = bds.getX();
-    final var y = bds.getY();
-    final var w = bds.getWidth();
-    final var h = bds.getHeight();
+    final var x = bounds.getX();
+    final var y = bounds.getY();
+    final var w = bounds.getWidth();
+    final var h = bounds.getHeight();
 
     // Outer background box with theme support
     g.setColor(new Color(AppPreferences.CANVAS_BG_COLOR.get()));
@@ -297,173 +297,144 @@ public class NE555 extends InstanceFactory {
     g.setColor(new Color(AppPreferences.COMPONENT_SECONDARY_COLOR.get()));
     g.drawRoundRect(x, y, w, h, 8, 8);
 
-    final var rOhm = attrs.getValue(ATTR_R1);
-    final var cUf = attrs.getValue(ATTR_C1);
+    final var r1Ohm = attrs.getValue(ATTR_R1);
+    final var c1Uf  = attrs.getValue(ATTR_C1);
 
-    final var rVal = (rOhm == null) ? DEFAULT_R1_OHM : Math.max(MIN_R1_OHM, Math.min(MAX_R1_OHM, rOhm));
-    final var cVal = (cUf == null) ? DEFAULT_C1_UF : Math.max(MIN_C1_UF, Math.min(MAX_C1_UF, cUf));
+    final var r1Clamped = (r1Ohm == null) ? DEFAULT_R1_OHM : Math.max(MIN_R1_OHM, Math.min(MAX_R1_OHM, r1Ohm));
+    final var c1Clamped = (c1Uf  == null) ? DEFAULT_C1_UF  : Math.max(MIN_C1_UF,  Math.min(MAX_C1_UF,  c1Uf));
 
-    final var rStr = (rVal >= 1000) ? (rVal / 1000 + "k") : (rVal + "Ω");
-    final var cStr = cVal + "µF";
+    final var r1Label = (r1Clamped >= 1000) ? (r1Clamped / 1000 + "k") : (r1Clamped + "Ω");
+    final var c1Label = c1Clamped + "µF";
 
-    final var cx = x + w / 2;
-    final var cy = y + h / 2;
+    final var centerX = x + w / 2;
+    final var centerY = y + h / 2;
 
-    g.translate(cx, cy);
+    g.translate(centerX, centerY);
 
     if (mode == MODE_ASTABLE) {
-      drawAstableSchematic(painter, g, s, rStr, cStr, showState);
+      drawAstableSchematic(painter, g, ne555State, r1Label, c1Label, showState);
     } else {
-      drawMonostableSchematic(painter, g, s, rStr, cStr, showState);
+      drawMonostableSchematic(painter, g, ne555State, r1Label, c1Label, showState);
     }
 
     drawTimingInfo(g, attrs, mode);
 
-    g.translate(-cx, -cy);
+    g.translate(-centerX, -centerY);
 
     painter.drawPorts();
     painter.drawLabel();
   }
 
-  // ---------------------------------------------------------------------------
-  // Отрисовка внутреннего корпуса микросхемы NE555 и подписей её пинов
-  // ---------------------------------------------------------------------------
-  private void drawInnerChip(Graphics g, boolean showState, NE555State s) {
-    // Координаты корпуса микросхемы (сдвинуты влево на 10px: от x=10 до x=70):
-    final var icX = 10;   // Левый край микросхемы
-    final var icY = -35;  // Верхний край микросхемы
-    final var icW = 60;   // Ширина микросхемы (от x=10 до x=70)
-    final var icH = 70;   // Высота микросхемы
+  private void drawInnerChip(Graphics g, boolean showState, NE555State ne555State) {
+    final var icX = 10;
+    final var icY = -35;
+    final var icW = 60;
+    final var icH = 70;
 
-    // 1. Заливка корпуса и рамка (адаптируется к теме)
     g.setColor(new Color(AppPreferences.CANVAS_BG_COLOR.get()));
     g.fillRect(icX, icY, icW, icH);
     g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
     g.drawRect(icX, icY, icW, icH);
 
-    // 2. Название микросхемы NE555 в верхней части корпуса
     g.setFont(g.getFont().deriveFont(7.0f).deriveFont(java.awt.Font.BOLD));
     g.drawString("NE555", icX + 19, icY + 57);
 
-    // 3. Обозначения выводов (пинов) внутри корпуса
     g.setFont(g.getFont().deriveFont(5.5f).deriveFont(java.awt.Font.PLAIN));
-
-    // Верхние пины
     g.drawString("4 RST",  icX + 2,  icY + 9);
     g.drawString("8 VCC",  icX + 34, icY + 9);
-
-    // Левые пины
     g.drawString("7 DIS",  icX + 2, icY + 20);
     g.drawString("6 THR",  icX + 2, icY + 34);
     g.drawString("2 TRIG", icX + 2, icY + 47);
     g.drawString("1 GND",  icX + 2, icY + icH - 2);
-
-    // Правый пин
     g.drawString("3 OUT",  icX + 40, icY + 37);
-
-    // Нижний пин
     g.drawString("5 CTRL", icX + 35, icY + icH - 2);
 
-    // 4. Светодиодный индикатор состояния (светло-зеленый при 1, темно-зеленый при 0)
-    if (showState && s != null) {
+    if (showState && ne555State != null) {
       final var ledSize = 5;
-      g.setColor(s.output ? com.cburch.logisim.data.Value.trueColor : com.cburch.logisim.data.Value.falseColor);
+      g.setColor(ne555State.output ? com.cburch.logisim.data.Value.trueColor : com.cburch.logisim.data.Value.falseColor);
       g.fillOval(icX + 30, icY + 32, ledSize, ledSize);
       g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Общий каркас схемы для обоих режимов: шины Vcc/GND, чип, питание, CTRL и OUT
-  // ---------------------------------------------------------------------------
-  private void drawCommonFrame(InstancePainter painter, Graphics g, NE555State s, boolean showState) {
+  private void drawCommonFrame(InstancePainter painter, Graphics g, NE555State ne555State, boolean showState) {
     g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
     g.setFont(g.getFont().deriveFont(5.5f).deriveFont(java.awt.Font.PLAIN));
 
-    // 1. Верхняя шина Vcc и нижняя шина GND (от x=-60 до x=45)
+    // Vcc and GND rails
     g.drawLine(-60, -48, 45, -48);
     g.drawString("Vcc", -12, -40);
     g.drawLine(-60, 48, 45, 48);
     g.drawString("GND", -12, 45);
 
-    // 2. Внутренний чип NE555 (icX = 10, от x=10 до x=70)
-    drawInnerChip(g, showState, s);
+    drawInnerChip(g, showState, ne555State);
 
-    // 3. Подключение пина 4 (RST, x=25) и пина 8 (VCC, x=45) к шине Vcc
+    // RST (pin 4) and VCC (pin 8) tied to Vcc rail
     drawDot(g, 25, -48);
     g.drawLine(25, -48, 25, -35);
     drawDot(g, 45, -48);
     g.drawLine(45, -48, 45, -35);
 
-    // 4. Фильтрующий конденсатор 10nF от пина 5 (CTRL, x=45) к шине GND
+    // CTRL (pin 5) bypass cap to GND
     drawCapacitor(g, 45, 35, 48, "10nF", -1.0, 3);
     drawDot(g, 45, 48);
 
-    // 5. Подключение пина 1 (GND, x=18) к шине GND
+    // GND (pin 1) to GND rail
     g.drawLine(18, 35, 18, 48);
     drawDot(g, 18, 48);
 
-    // 6. Выходной провод от пина 3 (OUT, x=70) к правому краю элемента (x=80)
-    final var outVal = painter.getPortValue(PIN_OUT);
-    final var outColor = (showState && outVal != null) ? outVal.getColor() : new Color(AppPreferences.COMPONENT_COLOR.get());
+    // OUT (pin 3) wire to component edge
+    final var outPortValue = painter.getPortValue(PIN_OUT);
+    final var outColor = (showState && outPortValue != null) ? outPortValue.getColor() : new Color(AppPreferences.COMPONENT_COLOR.get());
     GraphicsUtil.switchToWidth(g, 3);
     g.setColor(outColor);
     g.drawLine(70, 0, 80, 0);
     GraphicsUtil.switchToWidth(g, 1);
   }
 
-  // ---------------------------------------------------------------------------
-  // Обвязка только автоколебательного режима (Astable)
-  // ---------------------------------------------------------------------------
-  private void drawAstableSchematic(InstancePainter painter, Graphics g, NE555State s, String rStr, String cStr, boolean showState) {
-    drawCommonFrame(painter, g, s, showState);
+  private void drawAstableSchematic(InstancePainter painter, Graphics g, NE555State ne555State, String r1Label, String c1Label, boolean showState) {
+    drawCommonFrame(painter, g, ne555State, showState);
 
-    // Верхний фиксированный резистор R2 (1k): от Vcc (y=-48) до узла DIS (y=-20) на x=-60
+    // R2 (fixed 1k) from Vcc to DIS node
     drawResistor(g, -60, -48, -20, "R2 (1k)");
     drawDot(g, -60, -20);
-    g.drawLine(-60, -20, 10, -20); // провод к пину 7 (DIS)
+    g.drawLine(-60, -20, 10, -20);
 
-    // Нижний резистор R1: от узла DIS (y=-20) до узла TRIG (y=12) на x=-60
-    drawResistor(g, -60, -20, 12, "R1 (" + rStr + ")");
+    // R1 from DIS node to TRIG node
+    drawResistor(g, -60, -20, 12, "R1 (" + r1Label + ")");
     drawDot(g, -60, 12);
-    g.drawLine(-60, 12, 10, 12);  // провод к пину 2 (TRIG)
+    g.drawLine(-60, 12, 10, 12);
 
-    // Перемычка между пином 6 (THR) и пином 2 (TRIG)
+    // THR (pin 6) tied to TRIG (pin 2)
     drawDot(g, 0, 12);
     g.drawLine(0, 12, 0, -3);
     g.drawLine(0, -3, 10, -3);
 
-    // Конденсатор C1: от узла TRIG (y=12) к шине GND (y=48) на x=-60
-    final var capV = (showState && s != null) ? Math.max(0.0, s.capVoltage) : 0.0;
-    drawCapacitor(g, -60, 12, 48, "C1 (" + cStr + ")", capV, 0);
+    final var capDisplayVoltage = (showState && ne555State != null) ? Math.max(0.0, ne555State.capVoltage) : 0.0;
+    drawCapacitor(g, -60, 12, 48, "C1 (" + c1Label + ")", capDisplayVoltage, 0);
   }
 
-  // ---------------------------------------------------------------------------
-  // Обвязка только ждущего режима (Monostable)
-  // ---------------------------------------------------------------------------
-  private void drawMonostableSchematic(InstancePainter painter, Graphics g, NE555State s, String rStr, String cStr, boolean showState) {
-    drawCommonFrame(painter, g, s, showState);
+  private void drawMonostableSchematic(InstancePainter painter, Graphics g, NE555State ne555State, String r1Label, String c1Label, boolean showState) {
+    drawCommonFrame(painter, g, ne555State, showState);
 
-    // В моновибраторе резистор R1: от Vcc к пину 7 DIS
-    drawResistor(g, -60, -48, -20, "R1 (" + rStr + ")");
+    // R1 from Vcc to DIS (pin 7)
+    drawResistor(g, -60, -48, -20, "R1 (" + r1Label + ")");
     drawDot(g, -60, -20);
-    g.drawLine(-60, -20, 10, -20); // провод к пину 7 DIS
+    g.drawLine(-60, -20, 10, -20);
 
-    // Перемычка от пина 7 DIS к пину 6 THR
+    // DIS (pin 7) tied to THR (pin 6)
     drawDot(g, 0, -20);
     g.drawLine(0, -20, 0, -3);
-    g.drawLine(0, -3, 10, -3);   // к пину 6 THR
+    g.drawLine(0, -3, 10, -3);
 
-    // Соединительный провод от узла (-60, -20) вниз к конденсатору C1 (y=12)
     g.drawLine(-60, -20, -60, 12);
 
-    // Конденсатор C1: от узла y=12 к шине GND (y=48) на x=-60
-    final var capV = (showState && s != null) ? Math.max(0.0, s.capVoltage) : 0.0;
-    drawCapacitor(g, -60, 12, 48, "C1 (" + cStr + ")", capV, 0);
+    final var capDisplayVoltage = (showState && ne555State != null) ? Math.max(0.0, ne555State.capVoltage) : 0.0;
+    drawCapacitor(g, -60, 12, 48, "C1 (" + c1Label + ")", capDisplayVoltage, 0);
 
-    // Внешний вход Trigger к пину 2 (TRIG, y=10) от левого края (x = -80)
-    final var trigVal = painter.getPortValue(PIN_TRIG);
-    final var trigColor = (showState && trigVal != null) ? trigVal.getColor() : new Color(AppPreferences.COMPONENT_COLOR.get());
+    // External trigger input wire
+    final var trigPortValue = painter.getPortValue(PIN_TRIG);
+    final var trigColor = (showState && trigPortValue != null) ? trigPortValue.getColor() : new Color(AppPreferences.COMPONENT_COLOR.get());
     GraphicsUtil.switchToWidth(g, 3);
     g.setColor(trigColor);
     g.drawLine(-80, 10, 10, 10);
@@ -519,14 +490,14 @@ public class NE555 extends InstanceFactory {
 
   public static double getPeriodSeconds(AttributeSet attrs) {
     final var mode = getMode(attrs);
-    final var cFarad = getCapFarad(attrs);
+    final var capacitance = getCapFarad(attrs);
     if (mode == MODE_ASTABLE) {
-      final var rfixed = FIXED_RFIXED;
+      final var r2Fixed = FIXED_RFIXED;
       final var r1 = getResistanceOhm(attrs);
-      return 0.693 * (rfixed + 2.0 * r1) * cFarad;
+      return 0.693 * (r2Fixed + 2.0 * r1) * capacitance;
     } else {
       final var r1 = getResistanceOhm(attrs);
-      return 1.1 * r1 * cFarad;
+      return 1.1 * r1 * capacitance;
     }
   }
 
@@ -558,144 +529,144 @@ public class NE555 extends InstanceFactory {
     final var period = getPeriodSeconds(attrs);
     if (mode == MODE_ASTABLE) {
       final var freq = getFrequencyHz(attrs);
-      final var str = "T=" + formatTime(period) + "  f=" + formatFrequency(freq);
-      g.drawString(str, -70, 56);
+      final var displayStr = "T=" + formatTime(period) + "  f=" + formatFrequency(freq);
+      g.drawString(displayStr, -70, 56);
     } else {
-      final var str = "T=" + formatTime(period);
-      g.drawString(str, -70, 56);
+      final var displayStr = "T=" + formatTime(period);
+      g.drawString(displayStr, -70, 56);
     }
   }
 
   private static NE555State getOrCreateState(InstanceState state) {
-    var s = (NE555State) state.getData();
-    if (s == null) {
-      s = new NE555State(state);
-      state.setData(s);
+    var ne555State = (NE555State) state.getData();
+    if (ne555State == null) {
+      ne555State = new NE555State(state);
+      state.setData(ne555State);
     }
-    return s;
+    return ne555State;
   }
 
-  private static void applyVcc(double vcc, NE555State s) {
-    s.vccVoltage = Math.max(0.1, vcc);
+  private static void applyVcc(double vcc, NE555State ne555State) {
+    ne555State.vccVoltage = Math.max(0.1, vcc);
   }
 
-  private static void updateCap(AttributeSet attrs, NE555State s, double dt,
-      double targetV, double rCharge) {
+  private static void updateCap(AttributeSet attrs, NE555State ne555State, double dt,
+      double targetVoltage, double rCharge) {
     if (rCharge > 0) {
-      final var c = getCapFarad(attrs);
-      final var tau = rCharge * c;
-      if (tau > 1e-18) {
-        final var alpha = 1.0 - Math.exp(-dt / tau);
-        final var clamped = Math.min(alpha, 1.0 - 1e-6);
-        s.capVoltage += (targetV - s.capVoltage) * clamped;
+      final var capacitance = getCapFarad(attrs);
+      final var timeConstant = rCharge * capacitance;
+      if (timeConstant > 1e-18) {
+        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
+        final var clampedFraction = Math.min(chargeFraction, 1.0 - 1e-6);
+        ne555State.capVoltage += (targetVoltage - ne555State.capVoltage) * clampedFraction;
       } else {
-        s.capVoltage = targetV;
+        ne555State.capVoltage = targetVoltage;
       }
     }
   }
 
   @Override
   public void propagate(InstanceState state) {
-    final var s = getOrCreateState(state);
+    final var ne555State = getOrCreateState(state);
     final var attrs = state.getAttributeSet();
     final var mode = getMode(attrs);
     final var vcc = getVcc();
-    applyVcc(vcc, s);
+    applyVcc(vcc, ne555State);
 
-    final var trigVal = (mode == MODE_MONOSTABLE) ? state.getPortValue(PIN_TRIG) : Value.UNKNOWN;
-    final var trigLow = (trigVal == Value.FALSE);
+    final var trigPortValue = (mode == MODE_MONOSTABLE) ? state.getPortValue(PIN_TRIG) : Value.UNKNOWN;
+    final var trigLow = (trigPortValue == Value.FALSE);
 
-    final var thresV = getCtrlVoltage(s);
+    final var upperThreshold = getCtrlVoltage(ne555State);
 
     final var now = System.nanoTime();
-    final var dt = Math.min((now - s.lastUpdateNanos) / 1e9, 0.1);
-    s.lastUpdateNanos = now;
+    final var dt = Math.min((now - ne555State.lastUpdateNanos) / 1e9, 0.1);
+    ne555State.lastUpdateNanos = now;
 
     if (mode == MODE_ASTABLE) {
-      final var trigV = s.vccVoltage / 3.0;
-      doAstable(state, s, trigV, thresV, dt);
+      final var lowerThreshold = ne555State.vccVoltage / 3.0;
+      doAstable(state, ne555State, lowerThreshold, upperThreshold, dt);
     } else {
-      doMonostable(state, s, trigLow, thresV, dt);
+      doMonostable(state, ne555State, trigLow, upperThreshold, dt);
     }
 
-    setOutputs(state, s, vcc);
+    setOutputs(state, ne555State, vcc);
   }
 
-  private static void doAstable(InstanceState state, NE555State s,
-      double trigV, double thresV, double dt) {
-    final var rfixed = FIXED_RFIXED;
+  private static void doAstable(InstanceState state, NE555State ne555State,
+      double lowerThreshold, double upperThreshold, double dt) {
+    final var r2Fixed = FIXED_RFIXED;
     final var r1 = getResistanceOhm(state.getAttributeSet());
-    final var vcc = s.vccVoltage;
+    final var vcc = ne555State.vccVoltage;
 
-    if (!s.running && !s.waiting) {
-      s.capVoltage = trigV;
-      s.output = true;
-      s.disch = false;
-      s.running = true;
+    if (!ne555State.running && !ne555State.waiting) {
+      ne555State.capVoltage = lowerThreshold;
+      ne555State.output = true;
+      ne555State.disch = false;
+      ne555State.running = true;
     }
 
-    if (s.output && !s.disch) {
-      updateCap(state.getAttributeSet(), s, dt, vcc, rfixed + r1);
-      if (s.capVoltage >= thresV) {
-        s.output = false;
-        s.disch = true;
+    if (ne555State.output && !ne555State.disch) {
+      updateCap(state.getAttributeSet(), ne555State, dt, vcc, r2Fixed + r1);
+      if (ne555State.capVoltage >= upperThreshold) {
+        ne555State.output = false;
+        ne555State.disch = true;
       }
-    } else if (!s.output && s.disch) {
-      updateCap(state.getAttributeSet(), s, dt, 0.0, r1);
-      final var thr = Math.min(trigV * 0.95, s.capVoltage * 0.99 + 0.005);
-      if (s.capVoltage <= thr) {
-        s.output = true;
-        s.disch = false;
+    } else if (!ne555State.output && ne555State.disch) {
+      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, r1);
+      final var dischThreshold = Math.min(lowerThreshold * 0.95, ne555State.capVoltage * 0.99 + 0.005);
+      if (ne555State.capVoltage <= dischThreshold) {
+        ne555State.output = true;
+        ne555State.disch = false;
       }
     }
   }
 
-  private static void doMonostable(InstanceState state, NE555State s,
-      boolean trigLow, double thresV, double dt) {
-    final var r = getResistanceOhm(state.getAttributeSet());
-    final var c = getCapFarad(state.getAttributeSet());
+  private static void doMonostable(InstanceState state, NE555State ne555State,
+      boolean trigLow, double upperThreshold, double dt) {
+    final var resistance = getResistanceOhm(state.getAttributeSet());
+    final var capacitance = getCapFarad(state.getAttributeSet());
 
-    if (!s.running && !s.waiting) {
-      s.output = false;
-      s.disch = true;
-      s.capVoltage = 0.0;
+    if (!ne555State.running && !ne555State.waiting) {
+      ne555State.output = false;
+      ne555State.disch = true;
+      ne555State.capVoltage = 0.0;
       if (trigLow) {
-        s.running = true;
-        s.output = true;
-        s.disch = false;
-        s.activeStartNanos = System.nanoTime();
+        ne555State.running = true;
+        ne555State.output = true;
+        ne555State.disch = false;
+        ne555State.activeStartNanos = System.nanoTime();
       }
-    } else if (s.running) {
-      s.output = true;
-      s.disch = false;
-      final var targetT = 1.1 * r * c;
-      final var elapsed = (System.nanoTime() - s.activeStartNanos) / 1e9;
-      final var vcc = s.vccVoltage;
-      final var tau = r * c;
-      if (tau > 1e-18) {
-        final var alpha = 1.0 - Math.exp(-dt / tau);
-        s.capVoltage += (vcc - s.capVoltage) * alpha;
+    } else if (ne555State.running) {
+      ne555State.output = true;
+      ne555State.disch = false;
+      final var pulseWidth = 1.1 * resistance * capacitance;
+      final var elapsedSec = (System.nanoTime() - ne555State.activeStartNanos) / 1e9;
+      final var vcc = ne555State.vccVoltage;
+      final var timeConstant = resistance * capacitance;
+      if (timeConstant > 1e-18) {
+        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
+        ne555State.capVoltage += (vcc - ne555State.capVoltage) * chargeFraction;
       } else {
-        s.capVoltage = vcc;
+        ne555State.capVoltage = vcc;
       }
-      if (s.capVoltage >= thresV || elapsed >= targetT) {
-        s.output = false;
-        s.disch = true;
-        s.running = false;
-        s.waiting = true;
+      if (ne555State.capVoltage >= upperThreshold || elapsedSec >= pulseWidth) {
+        ne555State.output = false;
+        ne555State.disch = true;
+        ne555State.running = false;
+        ne555State.waiting = true;
       }
-    } else if (s.waiting) {
-      s.output = false;
-      s.disch = true;
-      updateCap(state.getAttributeSet(), s, dt, 0.0, 1000.0);
-      if (!trigLow && s.capVoltage < 0.1) {
-        s.waiting = false;
+    } else if (ne555State.waiting) {
+      ne555State.output = false;
+      ne555State.disch = true;
+      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, 1000.0);
+      if (!trigLow && ne555State.capVoltage < 0.1) {
+        ne555State.waiting = false;
       }
     }
   }
 
-  private static void setOutputs(InstanceState state, NE555State s, double vcc) {
-    final var outV = s.output ? Value.TRUE : Value.FALSE;
-    state.setPort(PIN_OUT, outV, 0);
+  private static void setOutputs(InstanceState state, NE555State ne555State, double vcc) {
+    final var outputValue = ne555State.output ? Value.TRUE : Value.FALSE;
+    state.setPort(PIN_OUT, outputValue, 0);
   }
 }
