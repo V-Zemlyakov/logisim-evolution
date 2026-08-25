@@ -603,10 +603,19 @@ public class RightPanel extends JPanel {
     }
 
     private void createOffscreen() {
-      buf = (BufferedImage) createImage(width, WAVE_HEIGHT);
-      final var g = buf.createGraphics();
+      if (width <= 0 || WAVE_HEIGHT <= 0) {
+        buf = null;
+        return;
+      }
+      final var img = (BufferedImage) createImage(width, WAVE_HEIGHT);
+      if (img == null) {
+        buf = null;
+        return;
+      }
+      final var g = img.createGraphics();
       drawWaveform(g);
       g.dispose();
+      buf = img;
     }
 
     public void paintWaveform(Graphics2D g) {
@@ -614,6 +623,7 @@ public class RightPanel extends JPanel {
         // TODO: reallocating image each time seems silly
         createOffscreen();
       }
+      if (buf == null) return;
       final var y = WAVE_HEIGHT * signal.idx;
       g.drawImage(buf, null, 0, y);
     }

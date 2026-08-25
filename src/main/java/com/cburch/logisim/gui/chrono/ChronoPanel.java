@@ -248,8 +248,8 @@ public class ChronoPanel extends LogPanel implements Model.Listener {
 
   @Override
   public void signalsExtended(Model.Event event) {
-    leftPanel.updateSignalValues();
-    rightPanel.updateWaveforms(true);
+    if (leftPanel != null) leftPanel.updateSignalValues();
+    if (rightPanel != null) rightPanel.updateWaveforms(true);
   }
 
   @Override
