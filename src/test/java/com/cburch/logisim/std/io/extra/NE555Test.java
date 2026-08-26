@@ -23,6 +23,12 @@ class NE555Test {
   }
 
   @Test
+  void testLoggerRegistered() {
+    final var logger = new NE555.Logger();
+    assertNotNull(logger);
+  }
+
+  @Test
   void testAttributes() {
     final var ne555 = new NE555();
     final var attrs = ne555.createAttributeSet();

@@ -144,7 +144,7 @@ public class Signal {
     } else if (dur[i / CHUNK][i % CHUNK] > duration) {
       dur[i / CHUNK][i % CHUNK] -= duration;
       extend(v, duration);
-    } else if (dur[i / CHUNK][i % CHUNK] + timeStart >= duration) {
+    } else if (curSize == 1 && dur[i / CHUNK][i % CHUNK] + timeStart >= duration) {
       timeStart -= (duration - dur[i / CHUNK][i % CHUNK]);
       val[i / CHUNK][i % CHUNK] = v;
       dur[i / CHUNK][i % CHUNK] = duration;

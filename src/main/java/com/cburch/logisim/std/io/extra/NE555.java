@@ -25,6 +25,7 @@ import com.cburch.logisim.instance.Instance;
 import com.cburch.logisim.instance.InstanceComponent;
 import com.cburch.logisim.instance.InstanceData;
 import com.cburch.logisim.instance.InstanceFactory;
+import com.cburch.logisim.instance.InstanceLogger;
 import com.cburch.logisim.instance.InstancePainter;
 import com.cburch.logisim.instance.InstanceState;
 import com.cburch.logisim.instance.Port;
@@ -138,6 +139,25 @@ public class NE555 extends InstanceFactory {
     }
   }
 
+  public static class Logger extends InstanceLogger {
+    @Override
+    public String getLogName(InstanceState state, Object option) {
+      final var label = state.getAttributeValue(StdAttr.LABEL);
+      return (label != null && !label.isEmpty()) ? label : null;
+    }
+
+    @Override
+    public BitWidth getBitWidth(InstanceState state, Object option) {
+      return BitWidth.ONE;
+    }
+
+    @Override
+    public Value getLogValue(InstanceState state, Object option) {
+      final var s = (NE555State) state.getData();
+      return s == null ? Value.FALSE : (s.output ? Value.TRUE : Value.FALSE);
+    }
+  }
+
   public NE555() {
     super(_ID, S.getter("ne555Component"));
     setAttributes(
@@ -163,6 +183,7 @@ public class NE555 extends InstanceFactory {
         });
     setIcon(new NE555Icon());
     setKeyConfigurator(new DirectionConfigurator(StdAttr.LABEL_LOC, KeyEvent.ALT_DOWN_MASK));
+    setInstanceLogger(Logger.class);
   }
 
   private static AttributeOption getMode(AttributeSet attrs) {
