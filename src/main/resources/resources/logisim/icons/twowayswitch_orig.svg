@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="16"
+   height="16"
+   viewBox="0 0 16 16"
+   version="1.1"
+   id="svg6"
+   sodipodi:docname="twowayswitch_tmp_svgo.svg"
+   inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs6" />
+  <sodipodi:namedview
+     id="namedview6"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="55"
+     inkscape:cx="8.0090909"
+     inkscape:cy="8.0090909"
+     inkscape:window-width="2560"
+     inkscape:window-height="1340"
+     inkscape:window-x="0"
+     inkscape:window-y="30"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg6" />
+  <circle
+     cx="14.536091"
+     cy="11.355"
+     r="1"
+     fill="#1e40ff"
+     id="circle1" />
+  <circle
+     cx="14.500455"
+     cy="5.4818182"
+     r="1"
+     fill="#1e40ff"
+     id="circle2" />
+  <circle
+     cx="1.445"
+     cy="8.191"
+     r="1"
+     fill="gray"
+     id="circle3" />
+  <rect
+     width="12"
+     height="11"
+     x="1.991"
+     y="2.5"
+     fill="none"
+     stroke="#000"
+     rx="1.5"
+     ry="1.5"
+     id="rect4" />
+  <circle
+     cx="4.991"
+     cy="8.5"
+     r="1"
+     id="circle4" />
+  <circle
+     cx="10.991"
+     cy="5.5"
+     r="1"
+     id="circle5" />
+  <circle
+     cx="11.009"
+     cy="10.882"
+     r="1"
+     id="circle6" />
+  <line
+     x1="4.918"
+     x2="10.918"
+     y1="8.5"
+     y2="5.5"
+     stroke="#000"
+     stroke-linecap="round"
+     stroke-width="1.5"
+     id="line6" />
+</svg>
