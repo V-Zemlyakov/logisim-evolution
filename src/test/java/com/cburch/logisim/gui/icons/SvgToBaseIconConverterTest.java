@@ -395,13 +395,12 @@ public class SvgToBaseIconConverterTest {
           case "polygon", "polyline" -> {
             final var pointsStr = elem.getAttribute("points").trim();
             if (!pointsStr.isEmpty()) {
-              final var pairs = pointsStr.split("\\s+");
+              final var tokens = pointsStr.split("[\\s,]+");
               final var transformedPts = new ArrayList<Point2D.Double>();
-              for (final var pair : pairs) {
-                final var pt = pair.split(",");
-                if (pt.length == 2) {
-                  final var rawX = Double.parseDouble(pt[0]);
-                  final var rawY = Double.parseDouble(pt[1]);
+              for (int k = 0; k + 1 < tokens.length; k += 2) {
+                if (!tokens[k].isEmpty() && !tokens[k + 1].isEmpty()) {
+                  final var rawX = Double.parseDouble(tokens[k]);
+                  final var rawY = Double.parseDouble(tokens[k + 1]);
                   final var dest = new Point2D.Double();
                   elementAT.transform(new Point2D.Double(rawX, rawY), dest);
                   transformedPts.add(dest);
