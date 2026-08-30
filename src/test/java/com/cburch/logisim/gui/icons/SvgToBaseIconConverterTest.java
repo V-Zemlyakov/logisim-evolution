@@ -203,8 +203,7 @@ public class SvgToBaseIconConverterTest {
           elementAT.concatenate(parseTransform(elem.getAttribute("transform")));
         }
 
-        final var fillRaw = getEffective(elem, "fill");
-        final var fill = fillRaw;
+        final var fill = getEffective(elem, "fill");
         final var stroke = getEffective(elem, "stroke");
         final var strokeWidthStr = getEffective(elem, "stroke-width");
         final var capStr = getEffective(elem, "stroke-linecap");
@@ -244,47 +243,15 @@ public class SvgToBaseIconConverterTest {
 
               final var isRounded = (rx > 0 || ry > 0);
 
-              if (!fill.equals("none")) {
-                if (isBlackFill) {
-                  sb.append("    g2.setColor(currentColor);\n");
-                } else if (isWhiteFill) {
-                  sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
-                } else {
-                  sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(fill)));
-                }
-                if (isRounded) {
-                  sb.append(String.format(Locale.US,
-                      "    g2.fill(new RoundRectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                      p1.x, p1.y, rw, rh, rx * 2.0, ry * 2.0));
-                } else {
-                  sb.append(String.format(Locale.US,
-                      "    g2.fill(new Rectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                      p1.x, p1.y, rw, rh));
-                }
-              }
-
-              if (!stroke.isEmpty() && !stroke.equals("none")) {
-                var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-                var strokeW = Math.max(rawSW * avgScale, 1.0);
-
-                if (isBlackStroke) {
-                  sb.append("    g2.setColor(currentColor);\n");
-                } else if (isWhiteStroke) {
-                  sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
-                } else {
-                  sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-                }
-                sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
-                if (isRounded) {
-                  sb.append(String.format(Locale.US,
-                      "    g2.draw(new RoundRectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                      p1.x, p1.y, rw, rh, rx * 2.0, ry * 2.0));
-                } else {
-                  sb.append(String.format(Locale.US,
-                      "    g2.draw(new Rectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                      p1.x, p1.y, rw, rh));
-                }
-              }
+              final var rectShapeExpr = isRounded
+                  ? String.format(Locale.US,
+                      "new RoundRectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f))",
+                      p1.x, p1.y, rw, rh, rx * 2.0, ry * 2.0)
+                  : String.format(Locale.US,
+                      "new Rectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f))",
+                      p1.x, p1.y, rw, rh);
+              emitFillAndDraw(sb, rectShapeExpr, fill, isBlackFill, isWhiteFill,
+                  stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
             }
           }
 
@@ -308,35 +275,11 @@ public class SvgToBaseIconConverterTest {
               final var ow = scaledRx * 2;
               final var oh = scaledRy * 2;
 
-              if (!fill.equals("none")) {
-                if (isBlackFill) {
-                  sb.append("    g2.setColor(currentColor);\n");
-                } else if (isWhiteFill) {
-                  sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
-                } else {
-                  sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(fill)));
-                }
-                sb.append(String.format(Locale.US,
-                    "    g2.fill(new Ellipse2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                    ox, oy, ow, oh));
-              }
-
-              if (!stroke.isEmpty() && !stroke.equals("none")) {
-                var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-                var strokeW = Math.max(rawSW * avgScale, 1.0);
-
-                if (isBlackStroke) {
-                  sb.append("    g2.setColor(currentColor);\n");
-                } else if (isWhiteStroke) {
-                  sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
-                } else {
-                  sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-                }
-                sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
-                sb.append(String.format(Locale.US,
-                    "    g2.draw(new Ellipse2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
-                    ox, oy, ow, oh));
-              }
+              final var ellipseExpr = String.format(Locale.US,
+                  "new Ellipse2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f))",
+                  ox, oy, ow, oh);
+              emitFillAndDraw(sb, ellipseExpr, fill, isBlackFill, isWhiteFill,
+                  stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
             }
           }
 
@@ -346,15 +289,9 @@ public class SvgToBaseIconConverterTest {
             elementAT.transform(pt1, pt1);
             elementAT.transform(pt2, pt2);
 
-            var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-            var strokeW = Math.max(rawSW * avgScale, 1.0);
-
-            if (isBlackStroke || stroke.isEmpty()) {
-              sb.append("    g2.setColor(currentColor);\n");
-            } else {
-              sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-            }
-            sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
+            emitSetStrokeColor(sb, isBlackStroke || stroke.isEmpty(), isWhiteStroke, stroke);
+            sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
+                formatBasicStroke(resolveStrokeWidth(strokeWidthStr, avgScale), capStr, joinStr)));
             sb.append(String.format(Locale.US,
                 "    g2.draw(new Line2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f)));\n",
                 pt1.x, pt1.y, pt2.x, pt2.y));
@@ -391,30 +328,8 @@ public class SvgToBaseIconConverterTest {
                   sb.append(String.format(Locale.US, "    %s.closePath();\n", varName));
                 }
 
-                if (!fill.equals("none")) {
-                  if (isBlackFill) {
-                    sb.append("    g2.setColor(currentColor);\n");
-                  } else if (isWhiteFill) {
-                    sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
-                  } else {
-                    sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(fill)));
-                  }
-                  sb.append(String.format(Locale.US, "    g2.fill(%s);\n", varName));
-                }
-
-                if (!stroke.isEmpty() && !stroke.equals("none")) {
-                  var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-                  var strokeW = Math.max(rawSW * avgScale, 1.0);
-                  if (isBlackStroke) {
-                    sb.append("    g2.setColor(currentColor);\n");
-                  } else if (isWhiteStroke) {
-                    sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
-                  } else {
-                    sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-                  }
-                  sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
-                  sb.append(String.format(Locale.US, "    g2.draw(%s);\n", varName));
-                }
+                emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+                    stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
               }
             }
           }
@@ -430,35 +345,8 @@ public class SvgToBaseIconConverterTest {
                 sb.append(String.format(Locale.US, "    final var %s = new Path2D.Double();\n", varName));
                 sb.append(pathCode);
 
-                boolean filled = false;
-                if (!fill.equals("none")) {
-                  if (isBlackFill) {
-                    sb.append("    g2.setColor(currentColor);\n");
-                  } else if (isWhiteFill) {
-                    sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
-                  } else {
-                    sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(fill)));
-                  }
-                  sb.append(String.format(Locale.US, "    g2.fill(%s);\n", varName));
-                  filled = true;
-                }
-
-                if (!stroke.isEmpty() && !stroke.equals("none")) {
-                  var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-                  var strokeW = Math.max(rawSW * avgScale, 1.0);
-                  if (isBlackStroke) {
-                    sb.append("    g2.setColor(currentColor);\n");
-                  } else if (isWhiteStroke) {
-                    sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
-                  } else {
-                    sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-                  }
-                  sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
-                  sb.append(String.format(Locale.US, "    g2.draw(%s);\n", varName));
-                } else if (!filled && fill.isEmpty()) {
-                  sb.append("    g2.setColor(currentColor);\n");
-                  sb.append(String.format(Locale.US, "    g2.fill(%s);\n", varName));
-                }
+                emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+                    stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
               }
             }
           }
@@ -468,6 +356,46 @@ public class SvgToBaseIconConverterTest {
           default -> processElementChildren(elem, sb, elementAT, pathIdx);
         }
       }
+    }
+  }
+
+  private static void emitSetFillColor(StringBuilder sb, boolean isBlack, boolean isWhite, String hex) {
+    if (isBlack) {
+      sb.append("    g2.setColor(currentColor);\n");
+    } else if (isWhite) {
+      sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
+    } else {
+      sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(hex)));
+    }
+  }
+
+  private static void emitSetStrokeColor(StringBuilder sb, boolean isBlack, boolean isWhite, String hex) {
+    if (isBlack) {
+      sb.append("    g2.setColor(currentColor);\n");
+    } else if (isWhite) {
+      sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
+    } else {
+      sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(hex)));
+    }
+  }
+
+  private static double resolveStrokeWidth(String strokeWidthStr, double avgScale) {
+    return Math.max((strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr)) * avgScale, 1.0);
+  }
+
+  private static void emitFillAndDraw(StringBuilder sb, String shapeExpr,
+      String fill, boolean isBlackFill, boolean isWhiteFill,
+      String stroke, boolean isBlackStroke, boolean isWhiteStroke,
+      String strokeWidthStr, String capStr, String joinStr, double avgScale) {
+    if (!fill.equals("none")) {
+      emitSetFillColor(sb, isBlackFill, isWhiteFill, fill);
+      sb.append(String.format(Locale.US, "    g2.fill(%s);\n", shapeExpr));
+    }
+    if (!stroke.isEmpty() && !stroke.equals("none")) {
+      emitSetStrokeColor(sb, isBlackStroke, isWhiteStroke, stroke);
+      sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
+          formatBasicStroke(resolveStrokeWidth(strokeWidthStr, avgScale), capStr, joinStr)));
+      sb.append(String.format(Locale.US, "    g2.draw(%s);\n", shapeExpr));
     }
   }
 
@@ -494,30 +422,8 @@ public class SvgToBaseIconConverterTest {
       pi.next();
     }
 
-    if (!fill.equals("none")) {
-      if (isBlackFill) {
-        sb.append("    g2.setColor(currentColor);\n");
-      } else if (isWhiteFill) {
-        sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? new Color(40, 40, 40) : Color.WHITE);\n");
-      } else {
-        sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(fill)));
-      }
-      sb.append(String.format(Locale.US, "    g2.fill(%s);\n", varName));
-    }
-
-    if (!stroke.isEmpty() && !stroke.equals("none")) {
-      var rawSW = strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr);
-      var strokeW = Math.max(rawSW * avgScale, 1.0);
-      if (isBlackStroke) {
-        sb.append("    g2.setColor(currentColor);\n");
-      } else if (isWhiteStroke) {
-        sb.append("    g2.setColor(AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get()) ? Color.BLACK : Color.WHITE);\n");
-      } else {
-        sb.append(String.format(Locale.US, "    g2.setColor(new Color(%s));\n", parseColorToJava(stroke)));
-      }
-      sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n", formatBasicStroke(strokeW, capStr, joinStr)));
-      sb.append(String.format(Locale.US, "    g2.draw(%s);\n", varName));
-    }
+    emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+        stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
   }
 
   private static boolean parseAndEmitSvgPath(String d, AffineTransform at, String varName, StringBuilder sb) {

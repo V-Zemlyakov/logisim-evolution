@@ -566,26 +566,19 @@ public class IconExporterTest {
     final var svgDir = new File("src/main/resources/doc/icons/svgwithoutbackground");
     final var png16Dir = new File("src/main/resources/doc/icons/1616");
     final var png64Dir = new File("src/main/resources/doc/icons/6464");
-    final var buildDir = new File("build/exported_icons");
 
-    final var svgDocFile = new File(svgDir, baseName + ".svg");
-    final var svgBuildFile = new File(buildDir, baseName + ".svg");
-    final var png16Doc = new File(png16Dir, baseName + ".png");
-    final var png64Doc = new File(png64Dir, baseName + ".png");
-    final var png16Build = new File(buildDir, baseName + "_16x16.png");
-    final var png64Build = new File(buildDir, baseName + "_64x64.png");
+    final var svgFile = new File(svgDir, baseName + ".svg");
+    final var png16 = new File(png16Dir, baseName + ".png");
+    final var png64 = new File(png64Dir, baseName + ".png");
 
-    exportIconToSvg(icon, svgDocFile);
-    exportIconToSvg(icon, svgBuildFile);
-    exportIconToPng(icon, 16, 16, png16Doc);
-    exportIconToPng(icon, 64, 64, png64Doc);
-    exportIconToPng(icon, 16, 16, png16Build);
-    exportIconToPng(icon, 64, 64, png64Build);
+    exportIconToSvg(icon, svgFile);
+    exportIconToPng(icon, 16, 16, png16);
+    exportIconToPng(icon, 64, 64, png64);
 
     System.out.println("Exported " + baseName + " to:");
-    System.out.println(" - SVG (JavaHelp without bg): " + svgDocFile.getAbsolutePath());
-    System.out.println(" - PNG 16x16 (JavaHelp 1616): " + png16Doc.getAbsolutePath());
-    System.out.println(" - PNG 64x64 (JavaHelp 6464): " + png64Doc.getAbsolutePath());
+    System.out.println(" - SVG (JavaHelp without bg): " + svgFile.getAbsolutePath());
+    System.out.println(" - PNG 16x16 (JavaHelp 1616): " + png16.getAbsolutePath());
+    System.out.println(" - PNG 64x64 (JavaHelp 6464): " + png64.getAbsolutePath());
   }
 
   /**

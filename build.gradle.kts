@@ -1102,16 +1102,12 @@ tasks.register<Exec>("exportIcon") {
     "com.cburch.logisim.gui.icons.IconExporterCli",
     fullClassName, baseName)
 }
-
-
-
 // Convert SVG to Java class AND export assets all in one step
 // Usage: ./gradlew processIcon -Psvg=/path/to/icon.svg -Picon=gates.buffer
 tasks.register("processIcon") {
   notCompatibleWithConfigurationCache("Icon processing pipeline requires dynamic project class loading")
   dependsOn("convertIcon", "classes", "exportIcon")
 }
-
 
 tasks.named("classes") {
   mustRunAfter("convertIcon")
