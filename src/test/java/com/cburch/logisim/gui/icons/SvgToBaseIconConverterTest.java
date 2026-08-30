@@ -17,6 +17,7 @@ import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
@@ -113,13 +114,44 @@ public class SvgToBaseIconConverterTest {
     sb.append("  protected void paintIcon(Graphics2D g2) {\n");
     sb.append("    final var currentColor = g2.getColor();\n\n");
 
+    final var cssRules = parseCssStyles(doc);
+
     final int[] pathIdx = {0};
-    processElementChildren(root, sb, baseAT, pathIdx);
+    processElementChildren(root, sb, baseAT, pathIdx, cssRules);
 
     sb.append("  }\n");
     sb.append("}\n");
 
     return sb.toString();
+  }
+
+  private static Map<String, Map<String, String>> parseCssStyles(org.w3c.dom.Document doc) {
+    final var cssRules = new java.util.HashMap<String, Map<String, String>>();
+    final var styleNodes = doc.getElementsByTagName("style");
+    for (int i = 0; i < styleNodes.getLength(); i++) {
+      final var styleText = styleNodes.item(i).getTextContent();
+      if (styleText == null || styleText.isEmpty()) continue;
+      final var cleaned = styleText.replaceAll("/\\*.*?\\*/", "");
+      final var matcher = Pattern.compile("([^{]+)\\{([^}]+)\\}").matcher(cleaned);
+      while (matcher.find()) {
+        final var selectors = matcher.group(1).trim().split("[\\s,]+");
+        final var declsStr = matcher.group(2).trim();
+        final var propMap = new java.util.HashMap<String, String>();
+        for (var decl : declsStr.split(";")) {
+          final var kv = decl.split(":", 2);
+          if (kv.length == 2) {
+            propMap.put(kv[0].trim().toLowerCase(Locale.US), kv[1].trim());
+          }
+        }
+        for (var sel : selectors) {
+          final var s = sel.trim();
+          if (!s.isEmpty()) {
+            cssRules.computeIfAbsent(s, k -> new java.util.HashMap<>()).putAll(propMap);
+          }
+        }
+      }
+    }
+    return cssRules;
   }
 
   private static String extractStyleProp(String style, String prop) {
@@ -133,12 +165,38 @@ public class SvgToBaseIconConverterTest {
     return "";
   }
 
-  private static String getEffective(Element elem, String attr) {
+  private static String getEffective(Element elem, String attr, Map<String, Map<String, String>> cssRules) {
     var curr = elem;
     while (curr != null) {
       final var styleStr = curr.getAttribute("style");
       final var fromStyle = extractStyleProp(styleStr, attr);
       if (!fromStyle.isEmpty()) return fromStyle;
+
+      if (curr.hasAttribute("class")) {
+        final var classes = curr.getAttribute("class").trim().split("[\\s,]+");
+        for (var cls : classes) {
+          if (!cls.isEmpty()) {
+            final var rule = cssRules.get("." + cls);
+            if (rule != null && rule.containsKey(attr)) {
+              return rule.get(attr);
+            }
+          }
+        }
+      }
+
+      if (curr.hasAttribute("id")) {
+        final var id = curr.getAttribute("id").trim();
+        final var rule = cssRules.get("#" + id);
+        if (rule != null && rule.containsKey(attr)) {
+          return rule.get(attr);
+        }
+      }
+
+      final var tagRule = cssRules.get(curr.getTagName().toLowerCase(Locale.US));
+      if (tagRule != null && tagRule.containsKey(attr)) {
+        return tagRule.get(attr);
+      }
+
       if (curr.hasAttribute(attr)) return curr.getAttribute(attr);
       final var parent = curr.getParentNode();
       if (parent instanceof Element parentElem) {
@@ -148,6 +206,30 @@ public class SvgToBaseIconConverterTest {
       }
     }
     return "";
+  }
+
+  private static String getEffectiveFill(Element elem, Map<String, Map<String, String>> cssRules) {
+    final var fillOpacity = getEffective(elem, "fill-opacity", cssRules);
+    if ("0".equals(fillOpacity) || "0.0".equals(fillOpacity) || "none".equalsIgnoreCase(fillOpacity)) {
+      return "none";
+    }
+    final var opacity = getEffective(elem, "opacity", cssRules);
+    if ("0".equals(opacity) || "0.0".equals(opacity)) {
+      return "none";
+    }
+    return getEffective(elem, "fill", cssRules);
+  }
+
+  private static String getEffectiveStroke(Element elem, Map<String, Map<String, String>> cssRules) {
+    final var strokeOpacity = getEffective(elem, "stroke-opacity", cssRules);
+    if ("0".equals(strokeOpacity) || "0.0".equals(strokeOpacity) || "none".equalsIgnoreCase(strokeOpacity)) {
+      return "none";
+    }
+    final var opacity = getEffective(elem, "opacity", cssRules);
+    if ("0".equals(opacity) || "0.0".equals(opacity)) {
+      return "none";
+    }
+    return getEffective(elem, "stroke", cssRules);
   }
 
   private static AffineTransform parseTransform(String transformStr) {
@@ -202,7 +284,7 @@ public class SvgToBaseIconConverterTest {
     return at;
   }
 
-  private static void processElementChildren(Element parent, StringBuilder sb, AffineTransform currentAT, int[] pathIdx) {
+  private static void processElementChildren(Element parent, StringBuilder sb, AffineTransform currentAT, int[] pathIdx, Map<String, Map<String, String>> cssRules) {
     final var children = parent.getChildNodes();
     for (int i = 0; i < children.getLength(); i++) {
       if (children.item(i) instanceof Element elem) {
@@ -213,11 +295,11 @@ public class SvgToBaseIconConverterTest {
           elementAT.concatenate(parseTransform(elem.getAttribute("transform")));
         }
 
-        final var fill = getEffective(elem, "fill");
-        final var stroke = getEffective(elem, "stroke");
-        final var strokeWidthStr = getEffective(elem, "stroke-width");
-        final var capStr = getEffective(elem, "stroke-linecap");
-        final var joinStr = getEffective(elem, "stroke-linejoin");
+        final var fill = getEffectiveFill(elem, cssRules);
+        final var stroke = getEffectiveStroke(elem, cssRules);
+        final var strokeWidthStr = getEffective(elem, "stroke-width", cssRules);
+        final var capStr = getEffective(elem, "stroke-linecap", cssRules);
+        final var joinStr = getEffective(elem, "stroke-linejoin", cssRules);
 
         final var isBlackFill = fill.isEmpty() || fill.equals("#000000") || fill.equals("#000") || fill.equalsIgnoreCase("black") || fill.equalsIgnoreCase("currentColor");
         final var isWhiteFill = fill.equals("#ffffff") || fill.equals("#fff") || fill.equalsIgnoreCase("white");
@@ -381,7 +463,7 @@ public class SvgToBaseIconConverterTest {
                 }
               }
 
-              final var fontSizeRaw = getEffective(elem, "font-size");
+              final var fontSizeRaw = getEffective(elem, "font-size", cssRules);
               double fontSize = 10.0;
               if (!fontSizeRaw.isEmpty()) {
                 final var cleaned = fontSizeRaw.replaceAll("[^0-9.]", "");
@@ -393,7 +475,7 @@ public class SvgToBaseIconConverterTest {
                 }
               }
 
-              final var fontWeight = getEffective(elem, "font-weight");
+              final var fontWeight = getEffective(elem, "font-weight", cssRules);
               final boolean isBold = fontWeight.equalsIgnoreCase("bold") || fontWeight.equals("700") || fontWeight.equals("800") || fontWeight.equals("900");
               final int fontStyle = isBold ? java.awt.Font.BOLD : java.awt.Font.PLAIN;
 
@@ -401,7 +483,7 @@ public class SvgToBaseIconConverterTest {
               final var frc = new java.awt.font.FontRenderContext(null, true, true);
               final var gv = font.createGlyphVector(frc, textContent);
 
-              final var anchor = getEffective(elem, "text-anchor");
+              final var anchor = getEffective(elem, "text-anchor", cssRules);
               final var bounds = gv.getVisualBounds();
               double fontOffsetX = 0.0;
               if (anchor.equalsIgnoreCase("middle")) {
@@ -416,9 +498,9 @@ public class SvgToBaseIconConverterTest {
             }
           }
 
-          case "g", "svg" -> processElementChildren(elem, sb, elementAT, pathIdx);
+          case "g", "svg" -> processElementChildren(elem, sb, elementAT, pathIdx, cssRules);
 
-          default -> processElementChildren(elem, sb, elementAT, pathIdx);
+          default -> processElementChildren(elem, sb, elementAT, pathIdx, cssRules);
         }
       }
     }
@@ -493,10 +575,9 @@ public class SvgToBaseIconConverterTest {
     }
 
     if (hasStroke) {
-      // If shape has fill, skip drawing outline unless it's a contrasting outline (e.g. black/white stroke around filled body)
-      final boolean isContrastingOutline = (isBlackStroke || isWhiteStroke) && (!isBlackFill && !isWhiteFill);
-      final double sw = resolveStrokeWidth(strokeWidthStr, avgScale);
-      if (!hasFill || isContrastingOutline) {
+      final boolean sameColor = hasFill && (fill.trim().equalsIgnoreCase(stroke.trim()) || (isBlackFill && isBlackStroke) || (isWhiteFill && isWhiteStroke));
+      if (!sameColor) {
+        final double sw = resolveStrokeWidth(strokeWidthStr, avgScale);
         emitSetStrokeColor(sb, isBlackStroke, isWhiteStroke, stroke);
         sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
             formatBasicStroke(sw, capStr, joinStr)));
@@ -788,24 +869,48 @@ public class SvgToBaseIconConverterTest {
     return false;
   }
   private static String parseColorToJava(String hex) {
-    if (hex.startsWith("#")) {
-      if (hex.length() == 7) {
-        final var r = Integer.parseInt(hex.substring(1, 3), 16);
-        final var g = Integer.parseInt(hex.substring(3, 5), 16);
-        final var b = Integer.parseInt(hex.substring(5, 7), 16);
-        return String.format("%d, %d, %d", r, g, b);
-      }
-      if (hex.length() == 4) {
-        final var r = Integer.parseInt(hex.substring(1, 2) + hex.substring(1, 2), 16);
-        final var g = Integer.parseInt(hex.substring(2, 3) + hex.substring(2, 3), 16);
-        final var b = Integer.parseInt(hex.substring(3, 4) + hex.substring(3, 4), 16);
+    if (hex == null || hex.isEmpty()) return "0, 0, 0";
+    final var val = hex.trim().toLowerCase(Locale.US);
+    if (val.startsWith("rgb")) {
+      final var matcher = Pattern.compile("rgba?\\s*\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)").matcher(val);
+      if (matcher.find()) {
+        final var r = Integer.parseInt(matcher.group(1));
+        final var g = Integer.parseInt(matcher.group(2));
+        final var b = Integer.parseInt(matcher.group(3));
         return String.format("%d, %d, %d", r, g, b);
       }
     }
-    if (hex.equalsIgnoreCase("white")) return "255, 255, 255";
-    if (hex.equalsIgnoreCase("black")) return "0, 0, 0";
-    if (hex.equalsIgnoreCase("gray") || hex.equalsIgnoreCase("grey")) return "128, 128, 128";
-    return "0, 0, 0";
+    if (val.startsWith("#")) {
+      if (val.length() == 7) {
+        final var r = Integer.parseInt(val.substring(1, 3), 16);
+        final var g = Integer.parseInt(val.substring(3, 5), 16);
+        final var b = Integer.parseInt(val.substring(5, 7), 16);
+        return String.format("%d, %d, %d", r, g, b);
+      }
+      if (val.length() == 4) {
+        final var r = Integer.parseInt(val.substring(1, 2) + val.substring(1, 2), 16);
+        final var g = Integer.parseInt(val.substring(2, 3) + val.substring(2, 3), 16);
+        final var b = Integer.parseInt(val.substring(3, 4) + val.substring(3, 4), 16);
+        return String.format("%d, %d, %d", r, g, b);
+      }
+    }
+    return switch (val) {
+      case "white" -> "255, 255, 255";
+      case "black" -> "0, 0, 0";
+      case "red" -> "255, 0, 0";
+      case "green" -> "0, 128, 0";
+      case "lime" -> "0, 255, 0";
+      case "blue" -> "0, 0, 255";
+      case "yellow" -> "255, 255, 0";
+      case "cyan" -> "0, 255, 255";
+      case "magenta", "fuchsia" -> "255, 0, 255";
+      case "orange" -> "255, 165, 0";
+      case "purple" -> "128, 0, 128";
+      case "gray", "grey" -> "128, 128, 128";
+      case "lightgray", "lightgrey" -> "211, 211, 211";
+      case "darkgray", "darkgrey" -> "169, 169, 169";
+      default -> "0, 0, 0";
+    };
   }
 
   private static String formatBasicStroke(double strokeW, String capStr, String joinStr) {
