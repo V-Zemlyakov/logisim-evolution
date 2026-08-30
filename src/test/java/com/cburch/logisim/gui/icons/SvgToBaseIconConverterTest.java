@@ -250,7 +250,8 @@ public class SvgToBaseIconConverterTest {
                   : String.format(Locale.US,
                       "new Rectangle2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f))",
                       p1.x, p1.y, rw, rh);
-              emitFillAndDraw(sb, rectShapeExpr, fill, isBlackFill, isWhiteFill,
+              final var comment = buildStyleComment(isRounded ? "rounded rectangle" : "rectangle", fill, isBlackFill, isWhiteFill, stroke, isBlackStroke, isWhiteStroke);
+              emitFillAndDraw(sb, comment, rectShapeExpr, fill, isBlackFill, isWhiteFill,
                   stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
             }
           }
@@ -278,7 +279,8 @@ public class SvgToBaseIconConverterTest {
               final var ellipseExpr = String.format(Locale.US,
                   "new Ellipse2D.Double(scale(%.4f), scale(%.4f), scale(%.4f), scale(%.4f))",
                   ox, oy, ow, oh);
-              emitFillAndDraw(sb, ellipseExpr, fill, isBlackFill, isWhiteFill,
+              final var comment = buildStyleComment(tag, fill, isBlackFill, isWhiteFill, stroke, isBlackStroke, isWhiteStroke);
+              emitFillAndDraw(sb, comment, ellipseExpr, fill, isBlackFill, isWhiteFill,
                   stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
             }
           }
@@ -289,6 +291,7 @@ public class SvgToBaseIconConverterTest {
             elementAT.transform(pt1, pt1);
             elementAT.transform(pt2, pt2);
 
+            sb.append("    ").append(buildStyleComment("line", "none", false, false, stroke, isBlackStroke || stroke.isEmpty(), isWhiteStroke)).append("\n");
             emitSetStrokeColor(sb, isBlackStroke || stroke.isEmpty(), isWhiteStroke, stroke);
             sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
                 formatBasicStroke(resolveStrokeWidth(strokeWidthStr, avgScale), capStr, joinStr)));
@@ -315,6 +318,7 @@ public class SvgToBaseIconConverterTest {
 
               if (!transformedPts.isEmpty()) {
                 final var varName = "path" + pathIdx[0]++;
+                sb.append("    ").append(buildStyleComment(tag, fill, isBlackFill, isWhiteFill, stroke, isBlackStroke, isWhiteStroke)).append("\n");
                 sb.append(String.format(Locale.US, "    final var %s = new Path2D.Double();\n", varName));
                 for (int j = 0; j < transformedPts.size(); j++) {
                   final var p = transformedPts.get(j);
@@ -328,7 +332,7 @@ public class SvgToBaseIconConverterTest {
                   sb.append(String.format(Locale.US, "    %s.closePath();\n", varName));
                 }
 
-                emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+                emitFillAndDraw(sb, null, varName, fill, isBlackFill, isWhiteFill,
                     stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
               }
             }
@@ -342,10 +346,11 @@ public class SvgToBaseIconConverterTest {
               final boolean hasDrawing = parseAndEmitSvgPath(d, elementAT, varName, pathCode);
 
               if (hasDrawing) {
+                sb.append("    ").append(buildStyleComment("path", fill, isBlackFill, isWhiteFill, stroke, isBlackStroke, isWhiteStroke)).append("\n");
                 sb.append(String.format(Locale.US, "    final var %s = new Path2D.Double();\n", varName));
                 sb.append(pathCode);
 
-                emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+                emitFillAndDraw(sb, null, varName, fill, isBlackFill, isWhiteFill,
                     stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
               }
             }
@@ -383,10 +388,32 @@ public class SvgToBaseIconConverterTest {
     return Math.max((strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr)) * avgScale, 1.0);
   }
 
-  private static void emitFillAndDraw(StringBuilder sb, String shapeExpr,
+  private static String buildStyleComment(String elementName, String fill, boolean isBlackFill, boolean isWhiteFill,
+      String stroke, boolean isBlackStroke, boolean isWhiteStroke) {
+    final var details = new ArrayList<String>();
+    if (!fill.equals("none")) {
+      if (isBlackFill) details.add("black fill");
+      else if (isWhiteFill) details.add("white fill");
+      else details.add("fill: " + fill);
+    }
+    if (!stroke.isEmpty() && !stroke.equals("none")) {
+      if (isBlackStroke) details.add("black stroke");
+      else if (isWhiteStroke) details.add("white stroke");
+      else details.add("stroke: " + stroke);
+    }
+    if (details.isEmpty()) {
+      return "// Draw " + elementName;
+    }
+    return "// Draw " + elementName + " (" + String.join(", ", details) + ")";
+  }
+
+  private static void emitFillAndDraw(StringBuilder sb, String comment, String shapeExpr,
       String fill, boolean isBlackFill, boolean isWhiteFill,
       String stroke, boolean isBlackStroke, boolean isWhiteStroke,
       String strokeWidthStr, String capStr, String joinStr, double avgScale) {
+    if (comment != null && !comment.isEmpty()) {
+      sb.append("    ").append(comment).append("\n");
+    }
     if (!fill.equals("none")) {
       emitSetFillColor(sb, isBlackFill, isWhiteFill, fill);
       sb.append(String.format(Locale.US, "    g2.fill(%s);\n", shapeExpr));
@@ -403,6 +430,7 @@ public class SvgToBaseIconConverterTest {
     final var pi = shape.getPathIterator(at);
     final var coords = new double[6];
     final var varName = "path" + pathIdx[0]++;
+    sb.append("    ").append(buildStyleComment("shape", fill, isBlackFill, isWhiteFill, stroke, isBlackStroke, isWhiteStroke)).append("\n");
     sb.append(String.format(Locale.US, "    final var %s = new Path2D.Double();\n", varName));
 
     while (!pi.isDone()) {
@@ -422,7 +450,7 @@ public class SvgToBaseIconConverterTest {
       pi.next();
     }
 
-    emitFillAndDraw(sb, varName, fill, isBlackFill, isWhiteFill,
+    emitFillAndDraw(sb, null, varName, fill, isBlackFill, isWhiteFill,
         stroke, isBlackStroke, isWhiteStroke, strokeWidthStr, capStr, joinStr, avgScale);
   }
 
