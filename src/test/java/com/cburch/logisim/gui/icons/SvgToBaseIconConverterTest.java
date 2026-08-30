@@ -483,6 +483,10 @@ public class SvgToBaseIconConverterTest {
               final var gv = font.createGlyphVector(frc, textContent);
 
               final var anchor = getEffective(elem, "text-anchor", cssRules);
+              final var dominantBaseline = getEffective(elem, "dominant-baseline", cssRules);
+              final var alignmentBaseline = getEffective(elem, "alignment-baseline", cssRules);
+              final var baseline = !dominantBaseline.isEmpty() ? dominantBaseline : alignmentBaseline;
+
               final var bounds = gv.getVisualBounds();
               double fontOffsetX = 0.0;
               if (anchor.equalsIgnoreCase("middle")) {
@@ -491,7 +495,14 @@ public class SvgToBaseIconConverterTest {
                 fontOffsetX = -bounds.getWidth() - bounds.getX();
               }
 
-              final var textShape = gv.getOutline((float) (rawX + fontOffsetX), (float) rawY);
+              double fontOffsetY = 0.0;
+              if (baseline.equalsIgnoreCase("central") || baseline.equalsIgnoreCase("middle")) {
+                fontOffsetY = -(bounds.getY() + bounds.getHeight() / 2.0);
+              } else if (baseline.equalsIgnoreCase("hanging") || baseline.equalsIgnoreCase("text-before-edge")) {
+                fontOffsetY = -bounds.getY();
+              }
+
+              final var textShape = gv.getOutline((float) (rawX + fontOffsetX), (float) (rawY + fontOffsetY));
 
               emitTransformedShape(sb, textShape, elementAT, fill, stroke, strokeWidthStr, capStr, joinStr, avgScale, isBlackFill, isWhiteFill, isBlackStroke, isWhiteStroke, pathIdx);
             }
