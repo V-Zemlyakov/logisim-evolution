@@ -385,7 +385,14 @@ public class SvgToBaseIconConverterTest {
   }
 
   private static double resolveStrokeWidth(String strokeWidthStr, double avgScale) {
-    return Math.max((strokeWidthStr.isEmpty() ? 1.0 : Double.parseDouble(strokeWidthStr)) * avgScale, 1.0);
+    if (strokeWidthStr == null || strokeWidthStr.isEmpty()) return 1.0;
+    final var val = strokeWidthStr.replaceAll("[^0-9.]", "");
+    if (val.isEmpty()) return 1.0;
+    try {
+      return Math.max(Double.parseDouble(val) * avgScale, 1.0);
+    } catch (Exception e) {
+      return 1.0;
+    }
   }
 
   private static String buildStyleComment(String elementName, String fill, boolean isBlackFill, boolean isWhiteFill,
@@ -682,7 +689,8 @@ public class SvgToBaseIconConverterTest {
   private static double parseDouble(Element elem, String attr) {
     if (!elem.hasAttribute(attr)) return 0.0;
     try {
-      return Double.parseDouble(elem.getAttribute(attr));
+      final var val = elem.getAttribute(attr).replaceAll("[^0-9.-]", "");
+      return val.isEmpty() ? 0.0 : Double.parseDouble(val);
     } catch (Exception e) {
       return 0.0;
     }
