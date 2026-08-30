@@ -134,10 +134,20 @@ public class SvgToBaseIconConverterTest {
   }
 
   private static String getEffective(Element elem, String attr) {
-    final var styleStr = elem.getAttribute("style");
-    final var fromStyle = extractStyleProp(styleStr, attr);
-    if (!fromStyle.isEmpty()) return fromStyle;
-    return elem.getAttribute(attr);
+    var curr = elem;
+    while (curr != null) {
+      final var styleStr = curr.getAttribute("style");
+      final var fromStyle = extractStyleProp(styleStr, attr);
+      if (!fromStyle.isEmpty()) return fromStyle;
+      if (curr.hasAttribute(attr)) return curr.getAttribute(attr);
+      final var parent = curr.getParentNode();
+      if (parent instanceof Element parentElem) {
+        curr = parentElem;
+      } else {
+        break;
+      }
+    }
+    return "";
   }
 
   private static AffineTransform parseTransform(String transformStr) {
@@ -356,6 +366,56 @@ public class SvgToBaseIconConverterTest {
             }
           }
 
+          case "text" -> {
+            final var textContent = elem.getTextContent().trim();
+            if (!textContent.isEmpty()) {
+              var rawX = parseDouble(elem, "x");
+              var rawY = parseDouble(elem, "y");
+
+              final var childNodes = elem.getChildNodes();
+              for (int j = 0; j < childNodes.getLength(); j++) {
+                if (childNodes.item(j) instanceof Element childElem && childElem.getTagName().equalsIgnoreCase("tspan")) {
+                  if (childElem.hasAttribute("x")) rawX = parseDouble(childElem, "x");
+                  if (childElem.hasAttribute("y")) rawY = parseDouble(childElem, "y");
+                  break;
+                }
+              }
+
+              final var fontSizeRaw = getEffective(elem, "font-size");
+              double fontSize = 10.0;
+              if (!fontSizeRaw.isEmpty()) {
+                final var cleaned = fontSizeRaw.replaceAll("[^0-9.]", "");
+                if (!cleaned.isEmpty()) {
+                  try {
+                    fontSize = Double.parseDouble(cleaned);
+                  } catch (Exception ignored) {
+                  }
+                }
+              }
+
+              final var fontWeight = getEffective(elem, "font-weight");
+              final boolean isBold = fontWeight.equalsIgnoreCase("bold") || fontWeight.equals("700") || fontWeight.equals("800") || fontWeight.equals("900");
+              final int fontStyle = isBold ? java.awt.Font.BOLD : java.awt.Font.PLAIN;
+
+              final var font = new java.awt.Font("SansSerif", fontStyle, (int) Math.round(fontSize));
+              final var frc = new java.awt.font.FontRenderContext(null, true, true);
+              final var gv = font.createGlyphVector(frc, textContent);
+
+              final var anchor = getEffective(elem, "text-anchor");
+              final var bounds = gv.getVisualBounds();
+              double fontOffsetX = 0.0;
+              if (anchor.equalsIgnoreCase("middle")) {
+                fontOffsetX = -bounds.getWidth() / 2.0 - bounds.getX();
+              } else if (anchor.equalsIgnoreCase("end") || anchor.equalsIgnoreCase("right")) {
+                fontOffsetX = -bounds.getWidth() - bounds.getX();
+              }
+
+              final var textShape = gv.getOutline((float) (rawX + fontOffsetX), (float) rawY);
+
+              emitTransformedShape(sb, textShape, elementAT, fill, stroke, strokeWidthStr, capStr, joinStr, avgScale, isBlackFill, isWhiteFill, isBlackStroke, isWhiteStroke, pathIdx);
+            }
+          }
+
           case "g", "svg" -> processElementChildren(elem, sb, elementAT, pathIdx);
 
           default -> processElementChildren(elem, sb, elementAT, pathIdx);
@@ -389,7 +449,9 @@ public class SvgToBaseIconConverterTest {
     final var val = strokeWidthStr.replaceAll("[^0-9.]", "");
     if (val.isEmpty()) return 1.0;
     try {
-      return Math.max(Double.parseDouble(val) * avgScale, 1.0);
+      final double rawSW = Double.parseDouble(val);
+      final double scaledSW = rawSW * avgScale;
+      return Math.max(scaledSW, 0.5);
     } catch (Exception e) {
       return 1.0;
     }
@@ -418,18 +480,28 @@ public class SvgToBaseIconConverterTest {
       String fill, boolean isBlackFill, boolean isWhiteFill,
       String stroke, boolean isBlackStroke, boolean isWhiteStroke,
       String strokeWidthStr, String capStr, String joinStr, double avgScale) {
-    if (comment != null && !comment.isEmpty()) {
+    final boolean hasFill = !fill.equals("none");
+    final boolean hasStroke = !stroke.isEmpty() && !stroke.equals("none");
+
+    if ((hasFill || hasStroke) && comment != null && !comment.isEmpty()) {
       sb.append("    ").append(comment).append("\n");
     }
-    if (!fill.equals("none")) {
+
+    if (hasFill) {
       emitSetFillColor(sb, isBlackFill, isWhiteFill, fill);
       sb.append(String.format(Locale.US, "    g2.fill(%s);\n", shapeExpr));
     }
-    if (!stroke.isEmpty() && !stroke.equals("none")) {
-      emitSetStrokeColor(sb, isBlackStroke, isWhiteStroke, stroke);
-      sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
-          formatBasicStroke(resolveStrokeWidth(strokeWidthStr, avgScale), capStr, joinStr)));
-      sb.append(String.format(Locale.US, "    g2.draw(%s);\n", shapeExpr));
+
+    if (hasStroke) {
+      // If shape has fill, skip drawing outline unless it's a contrasting outline (e.g. black/white stroke around filled body)
+      final boolean isContrastingOutline = (isBlackStroke || isWhiteStroke) && (!isBlackFill && !isWhiteFill);
+      final double sw = resolveStrokeWidth(strokeWidthStr, avgScale);
+      if (!hasFill || isContrastingOutline) {
+        emitSetStrokeColor(sb, isBlackStroke, isWhiteStroke, stroke);
+        sb.append(String.format(Locale.US, "    g2.setStroke(%s);\n",
+            formatBasicStroke(sw, capStr, joinStr)));
+        sb.append(String.format(Locale.US, "    g2.draw(%s);\n", shapeExpr));
+      }
     }
   }
 
@@ -696,6 +768,25 @@ public class SvgToBaseIconConverterTest {
     }
   }
 
+  private static boolean isVisuallySimilarColor(String c1Hex, String c2Hex) {
+    if (c1Hex == null || c2Hex == null || c1Hex.isEmpty() || c2Hex.isEmpty()) return true;
+    try {
+      final var p1 = parseColorToJava(c1Hex).split(",");
+      final var p2 = parseColorToJava(c2Hex).split(",");
+      if (p1.length == 3 && p2.length == 3) {
+        int r1 = Integer.parseInt(p1[0].trim());
+        int g1 = Integer.parseInt(p1[1].trim());
+        int b1 = Integer.parseInt(p1[2].trim());
+        int r2 = Integer.parseInt(p2[0].trim());
+        int g2 = Integer.parseInt(p2[1].trim());
+        int b2 = Integer.parseInt(p2[2].trim());
+        int diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+        return diff < 40;
+      }
+    } catch (Exception ignored) {
+    }
+    return false;
+  }
   private static String parseColorToJava(String hex) {
     if (hex.startsWith("#")) {
       if (hex.length() == 7) {

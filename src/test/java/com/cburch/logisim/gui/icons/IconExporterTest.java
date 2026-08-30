@@ -195,6 +195,13 @@ public class IconExporterTest {
       return d.toString().trim();
     }
 
+    public void drawString(String str, float x, float y) {
+      final var sb = getScaleBack();
+      svg.append(String.format(Locale.US,
+          "  <text x=\"%.2f\" y=\"%.2f\" fill=\"%s\" font-family=\"SansSerif\">%s</text>\n",
+          x * sb, y * sb, toHexColor(currentColor), str));
+    }
+
     public String build() {
       return svg.toString() + "</svg>\n";
     }
@@ -432,10 +439,14 @@ public class IconExporterTest {
     }
 
     @Override
-    public void drawString(String str, int x, int y) {}
+    public void drawString(String str, int x, int y) {
+      interceptor.drawString(str, (float) x, (float) y);
+    }
 
     @Override
-    public void drawString(String str, float x, float y) {}
+    public void drawString(String str, float x, float y) {
+      interceptor.drawString(str, x, y);
+    }
 
     @Override
     public void drawString(java.text.AttributedCharacterIterator iterator, int x, int y) {}
