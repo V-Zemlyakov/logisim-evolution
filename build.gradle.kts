@@ -1000,3 +1000,124 @@ tasks {
     source = fileTree("src/test/java")
   }
 }
+
+// ---------------------------------------------------------------------------
+// Icon tools automation tasks (Configuration Cache Compatible)
+// ---------------------------------------------------------------------------
+
+private fun parseIconSpec(iconProp: String): Triple<String, String, String> {
+  val parts = iconProp.split('.').map { it.trim() }.filter { it.isNotEmpty() }
+  if (parts.isEmpty()) {
+    throw GradleException("Invalid -Picon format: '$iconProp'. Examples: gates.buffer, io.led, io.extra.slider")
+  }
+
+  val baseName = parts.last().lowercase()
+  val rawClassName = parts.last()
+  val className = if (rawClassName.lowercase().endsWith("icon")) {
+    rawClassName.replaceFirstChar { it.uppercase() }
+  } else {
+    rawClassName.replaceFirstChar { it.uppercase() } + "Icon"
+  }
+
+  val pkgPrefix = if (parts.size > 1) {
+    parts.subList(0, parts.size - 1).joinToString(".")
+  } else {
+    "std.io.extra"
+  }
+
+  val fullPkg = when {
+    pkgPrefix.startsWith("com.cburch.logisim.") -> pkgPrefix
+    pkgPrefix.startsWith("logisim.") -> "com.cburch.$pkgPrefix"
+    pkgPrefix.startsWith("std.") -> "com.cburch.logisim.$pkgPrefix"
+    else -> "com.cburch.logisim.std.$pkgPrefix"
+  }
+
+  return Triple(fullPkg, className, baseName)
+}
+
+// Convert SVG file -> BaseIcon Java class
+// Usage: ./gradlew processIcon -Psvg=/path/to/icon.svg -Picon=gates.buffer
+tasks.register<Exec>("convertIcon") {
+  notCompatibleWithConfigurationCache("Icon converter task requires dynamic project class loading")
+  val svgProvider = providers.gradleProperty("svg")
+  val iconProvider = providers.gradleProperty("icon").orElse(providers.gradleProperty("iconClass"))
+  val rootDirFile = layout.projectDirectory.asFile
+  val cpFiles = (sourceSets["test"].runtimeClasspath.files + sourceSets["main"].output.files).map { it.absolutePath }
+
+  val svgPath = svgProvider.orNull
+      ?: throw GradleException("Missing required parameter: -Psvg=<path_to_svg_file>")
+  val iconSpec = iconProvider.orNull
+      ?: throw GradleException("Missing required parameter: -Picon=<spec> (e.g. -Picon=gates.buffer, io.led, io.extra.slider)")
+
+  var svgFile = File(svgPath)
+  if (!svgFile.isAbsolute) {
+    svgFile = File(rootDirFile, svgPath)
+  }
+  if (!svgFile.exists() || !svgFile.isFile) {
+    throw GradleException("SVG file not found at path: ${svgFile.absolutePath}")
+  }
+
+  val (pkgName, className, _) = parseIconSpec(iconSpec)
+  val pkgPath = pkgName.replace('.', '/')
+  val javaFile = File(rootDirFile, "src/main/java/$pkgPath/$className.java")
+
+  if (!javaFile.exists()) {
+    javaFile.parentFile.mkdirs()
+    javaFile.writeText(
+      """
+      package $pkgName;
+      import com.cburch.logisim.gui.icons.BaseIcon;
+      import java.awt.Graphics2D;
+      public class $className extends BaseIcon {
+        @Override
+        protected void paintIcon(Graphics2D g2) {}
+      }
+      """.trimIndent()
+    )
+  }
+
+  val cp = cpFiles.joinToString(File.pathSeparator)
+  commandLine("java", "--enable-native-access=ALL-UNNAMED", "-cp", cp,
+    "com.cburch.logisim.gui.icons.SvgConverterCli",
+    svgFile.absolutePath, javaFile.absolutePath, pkgName, className)
+}
+
+// Export BaseIcon Java class -> SVG and PNG assets
+tasks.register<Exec>("exportIcon") {
+  notCompatibleWithConfigurationCache("Icon exporter task requires dynamic project class loading")
+  val iconProvider = providers.gradleProperty("icon").orElse(providers.gradleProperty("iconClass"))
+  val bDirFile = layout.buildDirectory.asFile.get()
+  val cpFiles = (sourceSets["test"].runtimeClasspath.files + sourceSets["main"].output.files).map { it.absolutePath }
+
+  val iconSpec = iconProvider.orNull
+      ?: throw GradleException("Missing required parameter: -Picon=<spec> (e.g. -Picon=gates.buffer, io.led, io.extra.slider)")
+
+  val (pkgName, className, baseName) = parseIconSpec(iconSpec)
+  val fullClassName = "$pkgName.$className"
+
+  File(bDirFile, "resources/docgen").mkdirs()
+
+  val cp = cpFiles.joinToString(File.pathSeparator)
+  commandLine("java", "--enable-native-access=ALL-UNNAMED", "-cp", cp,
+    "com.cburch.logisim.gui.icons.IconExporterCli",
+    fullClassName, baseName)
+}
+
+
+
+// Convert SVG to Java class AND export assets all in one step
+// Usage: ./gradlew processIcon -Psvg=/path/to/icon.svg -Picon=gates.buffer
+tasks.register("processIcon") {
+  notCompatibleWithConfigurationCache("Icon processing pipeline requires dynamic project class loading")
+  dependsOn("convertIcon", "classes", "exportIcon")
+}
+
+
+tasks.named("classes") {
+  mustRunAfter("convertIcon")
+}
+
+tasks.named("exportIcon") {
+  mustRunAfter("classes")
+}
+
