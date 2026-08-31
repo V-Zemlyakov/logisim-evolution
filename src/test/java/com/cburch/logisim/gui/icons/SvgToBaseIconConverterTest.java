@@ -303,7 +303,7 @@ public class SvgToBaseIconConverterTest {
 
         final var isBlackFill = fill.isEmpty() || fill.equals("#000000") || fill.equals("#000") || fill.equalsIgnoreCase("black") || fill.equalsIgnoreCase("currentColor");
         final var isWhiteFill = fill.equals("#ffffff") || fill.equals("#fff") || fill.equalsIgnoreCase("white");
-        final var isBlackStroke = stroke.equals("#000000") || stroke.equals("#000") || stroke.equalsIgnoreCase("black") || stroke.equalsIgnoreCase("currentColor");
+        final var isBlackStroke = !stroke.isEmpty() && (stroke.equals("#000000") || stroke.equals("#000") || stroke.equalsIgnoreCase("black") || stroke.equalsIgnoreCase("currentColor"));
         final var isWhiteStroke = stroke.equals("#ffffff") || stroke.equals("#fff") || stroke.equalsIgnoreCase("white");
 
         final var scaleX = Math.hypot(elementAT.getScaleX(), elementAT.getShearY());
