@@ -21,7 +21,6 @@ import com.cburch.logisim.data.Bounds;
 import com.cburch.logisim.data.Direction;
 import com.cburch.logisim.data.Location;
 import com.cburch.logisim.data.Value;
-import com.cburch.logisim.gui.icons.TransistorIcon;
 import com.cburch.logisim.instance.Instance;
 import com.cburch.logisim.instance.InstanceFactory;
 import com.cburch.logisim.instance.InstancePainter;
@@ -53,10 +52,9 @@ public class Transistor extends InstanceFactory {
   static final int INPUT = 1;
   static final int GATE = 2;
 
-  private static final TransistorIcon ICON = new TransistorIcon();
-
   public Transistor() {
     super(_ID, S.getter("transistorComponent"));
+    setIcon(new TransistorIcon());
     setAttributes(
         new Attribute[] {ATTR_TYPE, StdAttr.FACING, StdAttr.SELECT_LOC, StdAttr.WIDTH},
         new Object[] {TYPE_P, Direction.EAST, StdAttr.SELECT_TOP_RIGHT, BitWidth.ONE});
@@ -225,13 +223,6 @@ public class Transistor extends InstanceFactory {
   @Override
   public void paintGhost(InstancePainter painter) {
     drawInstance(painter, true);
-  }
-
-  @Override
-  public void paintIcon(InstancePainter painter) {
-    Object type = painter.getAttributeValue(ATTR_TYPE);
-    ICON.setNTypeGate(type == TYPE_N);
-    ICON.paintIcon(painter.getDestination(), painter.getGraphics(), 2, 2);
   }
 
   @Override

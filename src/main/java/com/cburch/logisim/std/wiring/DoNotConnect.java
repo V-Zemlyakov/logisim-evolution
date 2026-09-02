@@ -37,7 +37,7 @@ public class DoNotConnect extends InstanceFactory {
 
   public DoNotConnect() {
     super(_ID, S.getter("noConnectionComponent"), new InlinedHdlGeneratorFactory());
-    setIconName("noconnect.gif");
+    setIcon(new DoNotConnectIcon());
     setAttributes(new Attribute[] {StdAttr.WIDTH}, new Object[] {BitWidth.ONE});
     setKeyConfigurator(new BitWidthConfigurator(StdAttr.WIDTH));
     setPorts(new Port[] {new Port(0, 0, Port.INOUT, StdAttr.WIDTH)});

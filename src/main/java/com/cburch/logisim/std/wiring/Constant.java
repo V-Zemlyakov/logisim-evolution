@@ -139,6 +139,7 @@ public class Constant extends InstanceFactory {
 
   public Constant() {
     super(_ID, S.getter("constantComponent"), new ConstantHdlGeneratorFactory());
+    setIcon(new ConstantIcon());
     setFacingAttribute(StdAttr.FACING);
     setKeyConfigurator(
         JoinedConfigurator.create(
@@ -201,39 +202,6 @@ public class Constant extends InstanceFactory {
     g.setFont(DEFAULT_FONT);
     GraphicsUtil.drawCenteredText(
         g, vStr, bds.getX() + bds.getWidth() / 2, bds.getY() + bds.getHeight() / 2 - 2);
-  }
-
-  //
-  // painting methods
-  //
-  @Override
-  public void paintIcon(InstancePainter painter) {
-    final var w = painter.getAttributeValue(StdAttr.WIDTH).getWidth();
-    var pinx = 16;
-    var piny = 9;
-    final var dir = painter.getAttributeValue(StdAttr.FACING);
-    if (dir == Direction.EAST) {
-    } else if (dir == Direction.WEST) {
-      pinx = 4;
-    } else if (dir == Direction.NORTH) {
-      pinx = 9;
-      piny = 4;
-    } else if (dir == Direction.SOUTH) {
-      pinx = 9;
-      piny = 16;
-    }
-
-    final var g = painter.getGraphics();
-    if (w == 1) {
-      final var v = painter.getAttributeValue(ATTR_VALUE);
-      final var val = v == 1L ? Value.TRUE : Value.FALSE;
-      g.setColor(val.getColor());
-      GraphicsUtil.drawCenteredText(g, "" + v, 10, 9);
-    } else {
-      g.setFont(g.getFont().deriveFont(9.0f));
-      GraphicsUtil.drawCenteredText(g, "x" + w, 10, 9);
-    }
-    g.fillOval(pinx, piny, 3, 3);
   }
 
   @Override

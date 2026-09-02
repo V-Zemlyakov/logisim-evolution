@@ -61,7 +61,7 @@ public class BitExtender extends InstanceFactory {
 
   public BitExtender() {
     super(_ID, S.getter("extenderComponent"), new BitExtenderHdlGeneratorFactory());
-    setIconName("extender.gif");
+    setIcon(new BitExtenderIcon());
     setAttributes(
         new Attribute[] {ATTR_IN_WIDTH, ATTR_OUT_WIDTH, ATTR_TYPE},
         new Object[] {BitWidth.create(8), BitWidth.create(16), ATTR_TYPE.parse("sign")});

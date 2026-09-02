@@ -49,7 +49,7 @@ public class Tunnel extends InstanceFactory {
 
   public Tunnel() {
     super(_ID, S.getter("tunnelComponent"));
-    setIconName("tunnel.gif");
+    setIcon(new TunnelIcon());
     setFacingAttribute(StdAttr.FACING);
     setKeyConfigurator(new BitWidthConfigurator(StdAttr.WIDTH));
   }
