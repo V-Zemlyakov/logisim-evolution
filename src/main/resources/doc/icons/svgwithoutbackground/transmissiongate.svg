@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16.00px" height="16.00px" viewBox="0 0 16.00 16.00">
+  <path d="M1.000,8.000 L5.500,8.000 L5.500,5.500 M5.500,8.000 L5.500,10.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M15.000,8.000 L10.500,8.000 L10.500,5.500 M10.500,8.000 L10.500,10.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M4.000,5.500 L12.000,5.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M4.000,10.500 L12.000,10.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M4.500,3.500 L11.500,3.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M9.100,2.300 C9.100,2.908 8.608,3.400 8.000,3.400 C7.392,3.400 6.900,2.908 6.900,2.300 C6.900,1.692 7.392,1.200 8.000,1.200 C8.608,1.200 9.100,1.692 9.100,2.300 Z" fill="none" stroke="#000000" stroke-width="1.00" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M8.000,1.000 L8.000,1.200" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M4.500,12.500 L11.500,12.500" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M8.000,12.500 L8.000,15.000" fill="none" stroke="#000000" stroke-width="1.20" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
