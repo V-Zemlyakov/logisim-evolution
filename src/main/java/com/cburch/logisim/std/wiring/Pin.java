@@ -740,6 +740,7 @@ public class Pin extends InstanceFactory {
 
   public Pin() {
     super(_ID, S.getter("pinComponent"));
+    setIcon(new PinIcon());
     setFacingAttribute(StdAttr.FACING);
     setKeyConfigurator(
         JoinedConfigurator.create(
@@ -1110,80 +1111,6 @@ public class Pin extends InstanceFactory {
           bds.getHeight(),
           Color.GRAY,
           true);
-    }
-  }
-
-  @Override
-  public void paintIcon(InstancePainter painter) {
-    PinAttributes attrs = (PinAttributes) painter.getAttributeSet();
-    Direction dir = attrs.facing;
-    boolean output = attrs.isOutput();
-    Graphics2D g = (Graphics2D) painter.getGraphics();
-    int iconSize = AppPreferences.getIconSize();
-    GraphicsUtil.switchToWidth(g, AppPreferences.getScaled(1));
-    BitWidth w = attrs.getValue(StdAttr.WIDTH);
-    int pinSize = iconSize >> 2;
-    final var baseColor = g.getColor();
-    if (attrs.getValue(ProbeAttributes.PROBEAPPEARANCE) == ProbeAttributes.APPEAR_EVOLUTION_NEW) {
-      int arrowHeight = (10 * iconSize) >> 4;
-      int yoff = (3 * iconSize) >> 4;
-      int xoff = output ? pinSize : 0;
-      int[] yPoints =
-          new int[] {yoff, yoff, yoff + (arrowHeight >> 1), yoff + arrowHeight, yoff + arrowHeight};
-      int[] xPoints =
-          new int[] {
-            xoff,
-            xoff + iconSize - (pinSize << 1),
-            xoff + iconSize - pinSize,
-            xoff + iconSize - (pinSize << 1),
-            xoff
-          };
-      g.setColor(baseColor);
-      g.drawPolygon(xPoints, yPoints, xPoints.length);
-      g.setColor(Value.TRUE.getColor());
-      GraphicsUtil.switchToWidth(g, AppPreferences.getScaled(2));
-      if (output)
-        g.drawLine(0, yoff + (arrowHeight >> 1), pinSize, yoff + (arrowHeight >> 1));
-      else
-        g.drawLine(iconSize - pinSize, yoff + (arrowHeight >> 1), iconSize, yoff + (arrowHeight >> 1));
-    } else {
-      int iconOffset = AppPreferences.getScaled(4);
-      int boxWidth = iconSize - (iconOffset << 1);
-      int pinWidth = AppPreferences.getScaled(3);
-      int pinx = iconOffset + boxWidth;
-      int piny = iconOffset + (boxWidth >> 1) - (pinWidth >> 1);
-      if (dir == Direction.WEST) {
-        pinx = iconOffset - pinWidth;
-      } else if (dir == Direction.NORTH) {
-        pinx = iconOffset + (boxWidth >> 1) - (pinWidth >> 1);
-        piny = iconOffset - pinWidth;
-      } else if (dir == Direction.SOUTH) {
-        pinx = iconOffset + (boxWidth >> 1) - (pinWidth >> 1);
-        piny = iconOffset + boxWidth;
-      }
-      g.setColor(baseColor);
-      if (output) {
-        g.drawOval(iconOffset, iconOffset, boxWidth, boxWidth);
-      } else {
-        g.drawRect(iconOffset, iconOffset, boxWidth, boxWidth);
-      }
-      g.setColor(Value.TRUE.getColor());
-      g.fillOval(iconOffset + (boxWidth >> 2), iconOffset + (boxWidth >> 3), boxWidth >> 1, (3 * boxWidth) >> 2);
-      g.fillOval(pinx, piny, pinWidth, pinWidth);
-    }
-    if (!w.equals(BitWidth.ONE)) {
-      g.setColor(ICON_WIDTH_COLOR);
-      g.setFont(ICON_WIDTH_FONT);
-      TextLayout bw = new TextLayout(Integer.toString(w.getWidth()), ICON_WIDTH_FONT, g.getFontRenderContext());
-      float xpos = (float) AppPreferences.getIconSize() / 2 - (float) bw.getBounds().getCenterX();
-      float ypos = (float) AppPreferences.getIconSize() / 2 - (float) bw.getBounds().getCenterY();
-      if (attrs.getValue(ProbeAttributes.PROBEAPPEARANCE) == ProbeAttributes.APPEAR_EVOLUTION_NEW)
-        if (output)
-          xpos = pinSize + (iconSize - pinSize) / 2 - (float) bw.getBounds().getCenterX();
-        else
-          xpos = (iconSize - pinSize) / 2 - (float) bw.getBounds().getCenterX();
-      bw.draw(g, xpos, ypos);
-      g.setColor(baseColor);
     }
   }
 

@@ -20,7 +20,6 @@ import com.cburch.logisim.data.Bounds;
 import com.cburch.logisim.data.Direction;
 import com.cburch.logisim.data.Location;
 import com.cburch.logisim.data.Value;
-import com.cburch.logisim.gui.icons.PullResistorIcon;
 import com.cburch.logisim.instance.Instance;
 import com.cburch.logisim.instance.InstanceFactory;
 import com.cburch.logisim.instance.InstancePainter;
@@ -63,10 +62,9 @@ public class PullResistor extends InstanceFactory {
           });
   public static final PullResistor FACTORY = new PullResistor();
 
-  private static final Icon ICON = new PullResistorIcon();
-
   public PullResistor() {
     super(_ID, S.getter("pullComponent"));
+    setIcon(new PullResistorIcon());
     setAttributes(
         new Attribute[] {StdAttr.FACING, ATTR_PULL_TYPE},
         new Object[] {Direction.SOUTH, ATTR_PULL_TYPE.parse("0")});
@@ -158,11 +156,6 @@ public class PullResistor extends InstanceFactory {
   //
   // graphics methods
   //
-  @Override
-  public void paintIcon(InstancePainter painter) {
-    ICON.paintIcon(painter.getDestination(), painter.getGraphics(), 2, 2);
-  }
-
   @Override
   public void paintInstance(InstancePainter painter) {
     Location loc = painter.getLocation();

@@ -94,7 +94,7 @@ public class PowerOnReset extends InstanceFactory {
           2,
         });
     setFacingAttribute(StdAttr.FACING);
-    setIconName("por.png");
+    setIcon(new PowerOnResetIcon());
     setInstancePoker(Poker.class);
   }
 
@@ -307,7 +307,7 @@ public class PowerOnReset extends InstanceFactory {
       g.drawLine(x2, y1, x2, y2);
       g.drawLine(x2, y2, x3, y2);
 
-      g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
+      g.setColor(Color.BLACK);
       String txt = S.get("PowerOnResetComponent");
       g.drawString(txt, x + 2, y + offset - 1);
     }

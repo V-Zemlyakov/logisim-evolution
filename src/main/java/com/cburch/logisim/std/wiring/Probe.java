@@ -274,7 +274,7 @@ public class Probe extends InstanceFactory implements DynamicElementProvider {
 
   public Probe() {
     super(_ID, S.getter("probeComponent"));
-    setIconName("probe.gif");
+    setIcon(new ProbeIcon());
     setKeyConfigurator(new DirectionConfigurator(StdAttr.LABEL_LOC, KeyEvent.ALT_DOWN_MASK));
     setFacingAttribute(StdAttr.FACING);
     setInstanceLogger(ProbeLogger.class);
