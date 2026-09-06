@@ -9,12 +9,16 @@
 
 package com.cburch.logisim.gui.main;
 
+import com.cburch.logisim.circuit.Wire;
 import com.cburch.logisim.comp.Component;
+import com.cburch.logisim.data.AttributeOption;
 import com.cburch.logisim.data.AttributeSet;
 import com.cburch.logisim.util.PropertyChangeWeakSupport;
 import java.beans.PropertyChangeListener;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 class Clipboard {
   public static final String CONTENTS_PROPERTY = "contents";
@@ -25,6 +29,7 @@ class Clipboard {
   // instance variables and methods
   //
   private final HashSet<Component> components;
+  private final Map<Wire, AttributeOption> wireBusWidthPositions;
   private AttributeSet oldAttrs;
   private AttributeSet newAttrs;
 
@@ -34,14 +39,22 @@ class Clipboard {
    */
   private Clipboard(Selection sel, AttributeSet viewAttrs) {
     components = new HashSet<>();
+    wireBusWidthPositions = new HashMap<>();
     oldAttrs = null;
     newAttrs = null;
+    final var circuit = sel.proj != null ? sel.proj.getCurrentCircuit() : null;
     for (final var base : sel.getComponents()) {
       final var baseAttrs = base.getAttributeSet();
       final var copyAttrs = (AttributeSet) baseAttrs.clone();
 
       final var copy = base.getFactory().createComponent(base.getLocation(), copyAttrs);
       components.add(copy);
+      if (base instanceof Wire w && circuit != null) {
+        final var pos = circuit.getWireBusWidthPos(w);
+        if (pos != null && pos != Wire.BUS_WIDTH_POS_NONE) {
+          wireBusWidthPositions.put((Wire) copy, pos);
+        }
+      }
       if (baseAttrs == viewAttrs) {
         oldAttrs = baseAttrs;
         newAttrs = copyAttrs;
@@ -90,6 +103,10 @@ class Clipboard {
 
   public Collection<Component> getComponents() {
     return components;
+  }
+
+  public Map<Wire, AttributeOption> getWireBusWidthPositions() {
+    return wireBusWidthPositions;
   }
 
   public AttributeSet getNewAttributeSet() {

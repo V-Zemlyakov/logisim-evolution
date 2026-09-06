@@ -13,6 +13,7 @@ import com.cburch.logisim.circuit.CircuitMutation;
 import com.cburch.logisim.circuit.Wire;
 import com.cburch.logisim.comp.Component;
 import com.cburch.logisim.comp.ComponentFactory;
+import com.cburch.logisim.data.AttributeOption;
 import com.cburch.logisim.data.AttributeSet;
 import com.cburch.logisim.data.Bounds;
 import com.cburch.logisim.data.Location;
@@ -26,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +39,8 @@ class SelectionBase {
   final HashSet<Component> selected = new HashSet<>(); // of selected
   // Components in circuit
   final HashSet<Component> lifted = new HashSet<>(); // of selected
+  // Bus-width positions for wires in 'lifted' that came from clipboard paste.
+  private final Map<Wire, AttributeOption> liftedWirePositions = new HashMap<>();
   final HashSet<Component> suppressHandles = new HashSet<>(); // of
   // Components
   final Set<Component> unionSet = CollectionUtil.createUnmodifiableSetUnion(selected, lifted);
@@ -103,11 +107,18 @@ class SelectionBase {
     if (selected.isEmpty() && lifted.isEmpty()) return;
 
     if (dropLifted && !lifted.isEmpty()) {
-      xn.addAll(lifted);
+      for (final var comp : lifted) {
+        if (comp instanceof Wire w) {
+          xn.addWire(w, lookupWireBusWidthPos(w));
+        } else {
+          xn.add(comp);
+        }
+      }
     }
 
     selected.clear();
     lifted.clear();
+    liftedWirePositions.clear();
     shouldSnap = false;
     bounds = Bounds.EMPTY_BOUNDS;
 
@@ -192,21 +203,45 @@ class SelectionBase {
     return ret;
   }
 
+  /**
+   * Looks up the BUS_WIDTH_POS for {@code wire} by checking, in order:
+   * {@link #liftedWirePositions} (populated from clipboard during paste),
+   * then the current circuit (covers drag/duplicate). Returns {@code null} if unset.
+   */
+  private AttributeOption lookupWireBusWidthPos(Wire wire) {
+    final var fromPaste = liftedWirePositions.get(wire);
+    if (fromPaste != null && fromPaste != Wire.BUS_WIDTH_POS_NONE) return fromPaste;
+    final var circ = proj != null ? proj.getCurrentCircuit() : null;
+    if (circ != null) {
+      final var pos = circ.getWireBusWidthPos(wire);
+      if (pos != Wire.BUS_WIDTH_POS_NONE) return pos;
+    }
+    return null;
+  }
+
+  void dropAll(CircuitMutation xn) {
+    if (!lifted.isEmpty()) {
+      for (final var comp : lifted) {
+        if (comp instanceof Wire w) {
+          xn.addWire(w, lookupWireBusWidthPos(w));
+        } else {
+          xn.add(comp);
+        }
+      }
+      selected.addAll(lifted);
+      lifted.clear();
+      liftedWirePositions.clear();
+    }
+  }
+
   void deleteAllHelper(CircuitMutation xn) {
     for (final var comp : selected) {
       xn.remove(comp);
     }
     selected.clear();
     lifted.clear();
+    liftedWirePositions.clear();
     fireSelectionChanged();
-  }
-
-  void dropAll(CircuitMutation xn) {
-    if (!lifted.isEmpty()) {
-      xn.addAll(lifted);
-      selected.addAll(lifted);
-      lifted.clear();
-    }
   }
 
   void duplicateHelper(CircuitMutation xn) {
@@ -283,11 +318,12 @@ class SelectionBase {
 
   void pasteHelper(CircuitMutation xn, Collection<Component> comps) {
     clear(xn);
-    final var canvas = proj.getFrame().getCanvas();
-    java.awt.Point mousePos = canvas.getMousePosition();
+    final var frame = proj != null ? proj.getFrame() : null;
+    final var canvas = frame != null ? frame.getCanvas() : null;
+    java.awt.Point mousePos = canvas != null ? canvas.getMousePosition() : null;
     HashMap<Component, Component> newItem;
 
-    if (mousePos != null) {
+    if (mousePos != null && canvas != null) {
       final double zoomFactor = canvas.getZoomFactor();
       Bounds bds = computeBounds(comps);
       int centerX = bds.getX() + bds.getWidth() / 2;
@@ -305,6 +341,21 @@ class SelectionBase {
       newItem = copyComponents(comps, dx, dy, false);
     } else {
       newItem = copyComponents(comps, false);
+    }
+
+    // Resolve bus-width positions from the clipboard for any pasted wires.
+    // comps are the clipboard's component copies; newItem maps src→dst.
+    final var clip = Clipboard.get();
+    final var clipPositions = clip != null ? clip.getWireBusWidthPositions() : null;
+    if (clipPositions != null && !clipPositions.isEmpty()) {
+      for (final var entry : newItem.entrySet()) {
+        if (entry.getKey() instanceof Wire srcWire && entry.getValue() instanceof Wire dstWire) {
+          final var pos = clipPositions.get(srcWire);
+          if (pos != null && pos != Wire.BUS_WIDTH_POS_NONE) {
+            liftedWirePositions.put(dstWire, pos);
+          }
+        }
+      }
     }
 
     lifted.addAll(newItem.values());
@@ -339,7 +390,11 @@ class SelectionBase {
       } else {
         lifted.remove(comp);
         removed = true;
-        xn.add(comp);
+        if (comp instanceof Wire w) {
+          xn.addWire(w, lookupWireBusWidthPos(w));
+        } else {
+          xn.add(comp);
+        }
       }
     }
 

@@ -63,7 +63,7 @@ class SelectionAttributes extends AbstractAttributeSet {
     if (sit.hasNext()) {
       final var firstComp = sit.next();
       final var first = firstComp.getAttributeSet();
-      final var circ = canvas.getCircuit();
+      final var circ = canvas != null ? canvas.getCircuit() : null;
       for (Attribute<?> attr : first.getAttributes()) {
         @SuppressWarnings("unchecked")
         final var attrObj = (Attribute<Object>) attr;

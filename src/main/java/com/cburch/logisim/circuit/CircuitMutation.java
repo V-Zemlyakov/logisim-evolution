@@ -14,6 +14,7 @@ import static com.cburch.logisim.circuit.Strings.S;
 import com.cburch.logisim.comp.Component;
 import com.cburch.logisim.comp.ComponentFactory;
 import com.cburch.logisim.data.Attribute;
+import com.cburch.logisim.data.AttributeOption;
 import com.cburch.logisim.proj.Action;
 import com.cburch.logisim.util.StringGetter;
 import com.cburch.logisim.vhdl.base.VhdlEntity;
@@ -39,6 +40,21 @@ public final class CircuitMutation extends CircuitTransaction {
 
   public void add(Component comp) {
     changes.add(CircuitChange.add(primary, comp));
+  }
+
+  /**
+   * Adds a wire and atomically records its bus-width-position attribute.
+   * This keeps BUS_WIDTH_POS propagation inside the circuit layer so GUI code
+   * does not need to carry a separate {@code Map<Wire, AttributeOption>}.
+   *
+   * @param wire the wire to add
+   * @param busWidthPos the position value, or {@code null}/{@link Wire#BUS_WIDTH_POS_NONE} to skip
+   */
+  public void addWire(Wire wire, AttributeOption busWidthPos) {
+    add(wire);
+    if (busWidthPos != null && busWidthPos != Wire.BUS_WIDTH_POS_NONE) {
+      set(wire, Wire.BUS_WIDTH_POS_ATTR, busWidthPos);
+    }
   }
 
   public void addAll(Collection<? extends Component> comps) {
