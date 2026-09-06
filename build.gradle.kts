@@ -1036,10 +1036,10 @@ private fun parseIconSpec(iconProp: String): Triple<String, String, String> {
 }
 
 // Convert SVG file -> AWT Java code snippet (printed to stdout)
-// Usage: ./gradlew convertIconSnippet -Psvg=/path/to/icon.svg
+// Usage: ./gradlew convertIconSnippet -Psvg=/path/to/icon.svg [-Praw]
 tasks.register<JavaExec>("convertIconSnippet") {
   group = "icons"
-  description = "Converts SVG file to clean AWT Java code snippet printed to stdout. Usage: ./gradlew convertIconSnippet -Psvg=svg/icon.svg"
+  description = "Converts SVG file to clean AWT Java code snippet printed to stdout. Usage: ./gradlew convertIconSnippet -Psvg=svg/icon.svg [-Praw]"
   dependsOn("testClasses")
 
   classpath = sourceSets["test"].runtimeClasspath + sourceSets["main"].output
@@ -1047,9 +1047,12 @@ tasks.register<JavaExec>("convertIconSnippet") {
   jvmArgs("--enable-native-access=ALL-UNNAMED")
 
   val svgProvider = providers.gradleProperty("svg")
+  val rawProvider = providers.gradleProperty("raw").orElse(providers.gradleProperty("native"))
   val rootDirFile = layout.projectDirectory.asFile
 
   val svgPath = svgProvider.orNull
+  val isRaw = rawProvider.isPresent && rawProvider.get().lowercase() != "false"
+
   if (svgPath != null) {
     var svgFile = File(svgPath)
     if (!svgFile.isAbsolute) {
@@ -1058,7 +1061,13 @@ tasks.register<JavaExec>("convertIconSnippet") {
     if (!svgFile.exists() || !svgFile.isFile) {
       throw GradleException("SVG file not found at path: ${svgFile.absolutePath}")
     }
-    args("--snippet", svgFile.absolutePath)
+    val cliArgs = mutableListOf<String>()
+    if (isRaw) {
+      cliArgs.add("--raw")
+    }
+    cliArgs.add("--snippet")
+    cliArgs.add(svgFile.absolutePath)
+    args(cliArgs)
   } else {
     doFirst {
       throw GradleException("Missing required parameter: -Psvg=<path_to_svg_file>")

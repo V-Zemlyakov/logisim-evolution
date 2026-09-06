@@ -34,26 +34,35 @@ public class SvgConverterCli {
 
   public static void main(String[] args) throws Exception {
     boolean snippetMode = false;
+    boolean useNativeSvgSize = false;
     String svgPath = null;
     String javaPath = null;
     String packageName = null;
     String className = null;
 
-    if (args.length == 1) {
+    final var argList = new java.util.ArrayList<String>();
+    for (var arg : args) {
+      if (arg.equals("--snippet")) {
+        snippetMode = true;
+      } else if (arg.equals("--raw") || arg.equals("--native")) {
+        useNativeSvgSize = true;
+      } else {
+        argList.add(arg);
+      }
+    }
+
+    if (argList.size() == 1) {
       snippetMode = true;
-      svgPath = args[0];
-    } else if (args.length == 2 && (args[0].equals("--snippet") || args[1].equals("--snippet"))) {
-      snippetMode = true;
-      svgPath = args[0].equals("--snippet") ? args[1] : args[0];
-    } else if (args.length == 4) {
-      svgPath = args[0];
-      javaPath = args[1];
-      packageName = args[2];
-      className = args[3];
+      svgPath = argList.get(0);
+    } else if (argList.size() == 4 && !snippetMode) {
+      svgPath = argList.get(0);
+      javaPath = argList.get(1);
+      packageName = argList.get(2);
+      className = argList.get(3);
     } else {
       System.err.println("Usage:");
       System.err.println("  BaseIcon mode: SvgConverterCli <svgPath> <javaPath> <packageName> <className>");
-      System.err.println("  Snippet mode:  SvgConverterCli --snippet <svgPath>  OR  SvgConverterCli <svgPath>");
+      System.err.println("  Snippet mode:  SvgConverterCli [--raw] [--snippet] <svgPath>");
       System.exit(1);
     }
 
@@ -64,7 +73,7 @@ public class SvgConverterCli {
     }
 
     if (snippetMode) {
-      final var snippet = SvgToBaseIconConverterTest.convertSvgToSnippet(svgFile);
+      final var snippet = SvgToBaseIconConverterTest.convertSvgToSnippet(svgFile, useNativeSvgSize);
       System.out.print(snippet);
     } else {
       final var targetJavaFile = new File(javaPath);

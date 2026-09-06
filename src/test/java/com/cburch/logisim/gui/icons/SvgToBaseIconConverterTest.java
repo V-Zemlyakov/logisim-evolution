@@ -37,10 +37,14 @@ public class SvgToBaseIconConverterTest {
   }
 
   public static String convertSvgToSnippet(File svgFile) throws Exception {
-    return convertSvgToSnippetInternal(svgFile, true);
+    return convertSvgToSnippetInternal(svgFile, true, false);
   }
 
-  private static String convertSvgToSnippetInternal(File svgFile, boolean includeSnippetMarkers) throws Exception {
+  public static String convertSvgToSnippet(File svgFile, boolean useNativeSvgSize) throws Exception {
+    return convertSvgToSnippetInternal(svgFile, true, useNativeSvgSize);
+  }
+
+  private static String convertSvgToSnippetInternal(File svgFile, boolean includeSnippetMarkers, boolean useNativeSvgSize) throws Exception {
     final var dbf = DocumentBuilderFactory.newInstance();
     dbf.setNamespaceAware(true);
     // Disable XXE to prevent XML injection when parsing arbitrary SVG files
@@ -77,9 +81,9 @@ public class SvgToBaseIconConverterTest {
 
     final double effW = svgWidth > 0 ? svgWidth : 16.0;
     final double effH = svgHeight > 0 ? svgHeight : 16.0;
-    final double scaleFactor = 16.0 / Math.max(effW, effH);
-    final double offsetX = (16.0 - (effW * scaleFactor)) / 2.0;
-    final double offsetY = (16.0 - (effH * scaleFactor)) / 2.0;
+    final double scaleFactor = useNativeSvgSize ? 1.0 : (16.0 / Math.max(effW, effH));
+    final double offsetX = useNativeSvgSize ? 0.0 : ((16.0 - (effW * scaleFactor)) / 2.0);
+    final double offsetY = useNativeSvgSize ? 0.0 : ((16.0 - (effH * scaleFactor)) / 2.0);
 
     final var baseAT = new AffineTransform();
     if (offsetX != 0 || offsetY != 0) {
@@ -135,7 +139,7 @@ public class SvgToBaseIconConverterTest {
     sb.append("public class ").append(className).append(" extends BaseIcon {\n\n");
     sb.append("  @Override\n");
     sb.append("  protected void paintIcon(Graphics2D g2) {\n");
-    sb.append(convertSvgToSnippetInternal(svgFile, false));
+    sb.append(convertSvgToSnippetInternal(svgFile, false, false));
     sb.append("  }\n");
     sb.append("}\n");
 
