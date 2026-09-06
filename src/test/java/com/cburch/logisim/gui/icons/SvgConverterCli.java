@@ -12,15 +12,17 @@ package com.cburch.logisim.gui.icons;
 import java.io.File;
 
 /**
- * CLI entry point for the SVG -&gt; BaseIcon Java class converter.
+ * CLI entry point for the SVG -&gt; BaseIcon Java class &amp; AWT snippet converter.
  *
  * <p>Designed to be invoked directly via {@code java -cp} without any Gradle or JUnit overhead,
  * making repeated conversions significantly faster than using the Gradle test task.
  *
  * <p>Usage:
  * <pre>
- *   java -cp "&lt;classpath&gt;" com.cburch.logisim.gui.icons.SvgConverterCli \
- *        &lt;svgPath&gt; &lt;javaPath&gt; &lt;packageName&gt; &lt;className&gt;
+ *   BaseIcon mode: java -cp "&lt;classpath&gt;" com.cburch.logisim.gui.icons.SvgConverterCli \
+ *                  &lt;svgPath&gt; &lt;javaPath&gt; &lt;packageName&gt; &lt;className&gt;
+ *   Snippet mode:  java -cp "&lt;classpath&gt;" com.cburch.logisim.gui.icons.SvgConverterCli \
+ *                  --snippet &lt;svgPath&gt;  (or single arg: SvgConverterCli &lt;svgPath&gt;)
  * </pre>
  *
  * <p>The classpath can be cached once with:
@@ -31,19 +33,29 @@ import java.io.File;
 public class SvgConverterCli {
 
   public static void main(String[] args) throws Exception {
-    if (args.length != 4) {
-      System.err.println("Usage: SvgConverterCli <svgPath> <javaPath> <packageName> <className>");
-      System.err.println("  svgPath     - path to the source SVG file");
-      System.err.println("  javaPath    - path to the output Java file");
-      System.err.println("  packageName - Java package name (e.g. com.cburch.logisim.std.io.extra)");
-      System.err.println("  className   - Java class name (e.g. SwitchIcon)");
+    boolean snippetMode = false;
+    String svgPath = null;
+    String javaPath = null;
+    String packageName = null;
+    String className = null;
+
+    if (args.length == 1) {
+      snippetMode = true;
+      svgPath = args[0];
+    } else if (args.length == 2 && (args[0].equals("--snippet") || args[1].equals("--snippet"))) {
+      snippetMode = true;
+      svgPath = args[0].equals("--snippet") ? args[1] : args[0];
+    } else if (args.length == 4) {
+      svgPath = args[0];
+      javaPath = args[1];
+      packageName = args[2];
+      className = args[3];
+    } else {
+      System.err.println("Usage:");
+      System.err.println("  BaseIcon mode: SvgConverterCli <svgPath> <javaPath> <packageName> <className>");
+      System.err.println("  Snippet mode:  SvgConverterCli --snippet <svgPath>  OR  SvgConverterCli <svgPath>");
       System.exit(1);
     }
-
-    final var svgPath = args[0];
-    final var javaPath = args[1];
-    final var packageName = args[2];
-    final var className = args[3];
 
     final var svgFile = new File(svgPath);
     if (!svgFile.exists() || !svgFile.isFile()) {
@@ -51,16 +63,21 @@ public class SvgConverterCli {
       System.exit(2);
     }
 
-    final var targetJavaFile = new File(javaPath);
+    if (snippetMode) {
+      final var snippet = SvgToBaseIconConverterTest.convertSvgToSnippet(svgFile);
+      System.out.print(snippet);
+    } else {
+      final var targetJavaFile = new File(javaPath);
 
-    System.out.println("Converting SVG -> BaseIcon Java class:");
-    System.out.println("  SVG:     " + svgFile.getAbsolutePath());
-    System.out.println("  Java:    " + targetJavaFile.getAbsolutePath());
-    System.out.println("  Package: " + packageName);
-    System.out.println("  Class:   " + className);
+      System.out.println("Converting SVG -> BaseIcon Java class:");
+      System.out.println("  SVG:     " + svgFile.getAbsolutePath());
+      System.out.println("  Java:    " + targetJavaFile.getAbsolutePath());
+      System.out.println("  Package: " + packageName);
+      System.out.println("  Class:   " + className);
 
-    SvgToBaseIconConverterTest.convertAndWriteFile(svgFile, targetJavaFile, packageName, className);
+      SvgToBaseIconConverterTest.convertAndWriteFile(svgFile, targetJavaFile, packageName, className);
 
-    System.out.println("SUCCESS: Generated " + targetJavaFile.getAbsolutePath());
+      System.out.println("SUCCESS: Generated " + targetJavaFile.getAbsolutePath());
+    }
   }
 }

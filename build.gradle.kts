@@ -1035,9 +1035,42 @@ private fun parseIconSpec(iconProp: String): Triple<String, String, String> {
   return Triple(fullPkg, className, baseName)
 }
 
+// Convert SVG file -> AWT Java code snippet (printed to stdout)
+// Usage: ./gradlew convertIconSnippet -Psvg=/path/to/icon.svg
+tasks.register<JavaExec>("convertIconSnippet") {
+  group = "icons"
+  description = "Converts SVG file to clean AWT Java code snippet printed to stdout. Usage: ./gradlew convertIconSnippet -Psvg=svg/icon.svg"
+  dependsOn("testClasses")
+
+  classpath = sourceSets["test"].runtimeClasspath + sourceSets["main"].output
+  mainClass.set("com.cburch.logisim.gui.icons.SvgConverterCli")
+  jvmArgs("--enable-native-access=ALL-UNNAMED")
+
+  val svgProvider = providers.gradleProperty("svg")
+  val rootDirFile = layout.projectDirectory.asFile
+
+  val svgPath = svgProvider.orNull
+  if (svgPath != null) {
+    var svgFile = File(svgPath)
+    if (!svgFile.isAbsolute) {
+      svgFile = File(rootDirFile, svgPath)
+    }
+    if (!svgFile.exists() || !svgFile.isFile) {
+      throw GradleException("SVG file not found at path: ${svgFile.absolutePath}")
+    }
+    args("--snippet", svgFile.absolutePath)
+  } else {
+    doFirst {
+      throw GradleException("Missing required parameter: -Psvg=<path_to_svg_file>")
+    }
+  }
+}
+
 // Convert SVG file -> BaseIcon Java class
 // Usage: ./gradlew processIcon -Psvg=/path/to/icon.svg -Picon=gates.buffer
 tasks.register<Exec>("convertIcon") {
+  group = "icons"
+  description = "Converts SVG file to BaseIcon Java class. Usage: ./gradlew convertIcon -Psvg=svg/icon.svg -Picon=wiring.Clock"
   notCompatibleWithConfigurationCache("Icon converter task requires dynamic project class loading")
   doFirst {
     val svgProvider = providers.gradleProperty("svg")
@@ -1086,6 +1119,8 @@ tasks.register<Exec>("convertIcon") {
 
 // Export BaseIcon Java class -> SVG and PNG assets
 tasks.register<Exec>("exportIcon") {
+  group = "icons"
+  description = "Exports BaseIcon Java class to PNG and SVG documentation assets. Usage: ./gradlew exportIcon -Picon=wiring.Clock"
   notCompatibleWithConfigurationCache("Icon exporter task requires dynamic project class loading")
   doFirst {
     val iconProvider = providers.gradleProperty("icon").orElse(providers.gradleProperty("iconClass"))
@@ -1110,6 +1145,8 @@ tasks.register<Exec>("exportIcon") {
 // Convert SVG to Java class AND export assets all in one step
 // Usage: ./gradlew processIcon -Psvg=/path/to/icon.svg -Picon=gates.buffer
 tasks.register("processIcon") {
+  group = "icons"
+  description = "Converts SVG to BaseIcon Java class AND exports documentation assets in one step. Usage: ./gradlew processIcon -Psvg=svg/icon.svg -Picon=wiring.Clock"
   notCompatibleWithConfigurationCache("Icon processing pipeline requires dynamic project class loading")
   dependsOn("convertIcon", "classes", "testClasses", "exportIcon")
 }

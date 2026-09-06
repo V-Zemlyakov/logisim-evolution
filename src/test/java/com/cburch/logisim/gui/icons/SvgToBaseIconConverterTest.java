@@ -36,7 +36,11 @@ public class SvgToBaseIconConverterTest {
     System.out.println("Generated BaseIcon class at: " + targetJavaFile.getAbsolutePath());
   }
 
-  public static String convertSvgToBaseIconClass(File svgFile, String packageName, String className) throws Exception {
+  public static String convertSvgToSnippet(File svgFile) throws Exception {
+    return convertSvgToSnippetInternal(svgFile, true);
+  }
+
+  private static String convertSvgToSnippetInternal(File svgFile, boolean includeSnippetMarkers) throws Exception {
     final var dbf = DocumentBuilderFactory.newInstance();
     dbf.setNamespaceAware(true);
     // Disable XXE to prevent XML injection when parsing arbitrary SVG files
@@ -89,6 +93,25 @@ public class SvgToBaseIconConverterTest {
     }
 
     final var sb = new StringBuilder();
+    final var fileName = svgFile.getName();
+    if (includeSnippetMarkers) {
+      sb.append("    // START: Auto-generated AWT code from ").append(fileName).append("\n");
+    }
+    sb.append("    final var currentColor = g2.getColor();\n\n");
+
+    final var cssRules = parseCssStyles(doc);
+
+    final int[] pathIdx = {0};
+    processElementChildren(root, sb, baseAT, pathIdx, cssRules);
+
+    if (includeSnippetMarkers) {
+      sb.append("    // END: Auto-generated AWT code from ").append(fileName).append("\n");
+    }
+    return sb.toString();
+  }
+
+  public static String convertSvgToBaseIconClass(File svgFile, String packageName, String className) throws Exception {
+    final var sb = new StringBuilder();
     sb.append("/*\n");
     sb.append(" * Logisim-evolution - digital logic design tool and simulator\n");
     sb.append(" * Copyright by the Logisim-evolution developers\n");
@@ -112,13 +135,7 @@ public class SvgToBaseIconConverterTest {
     sb.append("public class ").append(className).append(" extends BaseIcon {\n\n");
     sb.append("  @Override\n");
     sb.append("  protected void paintIcon(Graphics2D g2) {\n");
-    sb.append("    final var currentColor = g2.getColor();\n\n");
-
-    final var cssRules = parseCssStyles(doc);
-
-    final int[] pathIdx = {0};
-    processElementChildren(root, sb, baseAT, pathIdx, cssRules);
-
+    sb.append(convertSvgToSnippetInternal(svgFile, false));
     sb.append("  }\n");
     sb.append("}\n");
 
