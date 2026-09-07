@@ -31,14 +31,21 @@ import com.cburch.logisim.instance.Port;
 import com.cburch.logisim.instance.StdAttr;
 import com.cburch.logisim.prefs.AppPreferences;
 import com.cburch.logisim.util.GraphicsUtil;
+import com.cburch.logisim.util.StringGetter;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
+import javax.swing.JTextField;
 import javax.swing.Timer;
 
 public class PowerOnReset extends InstanceFactory {
@@ -68,6 +75,67 @@ public class PowerOnReset extends InstanceFactory {
       Attributes.forOption(
           "porTransition", S.getter("porTransition"), new AttributeOption[] {HTOL, LTOH});
 
+  private static class PORDurationAttribute extends Attribute<Double> {
+    private static final DecimalFormat FORMAT =
+        new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US));
+
+    private final double min;
+    private final double max;
+
+    public PORDurationAttribute(String name, StringGetter disp, double min, double max) {
+      super(name, disp);
+      this.min = min;
+      this.max = max;
+    }
+
+    @Override
+    public Component getCellEditor(Window source, Double value) {
+      final var field = new JTextField();
+      field.setText(value == null ? "" : FORMAT.format(value));
+      return field;
+    }
+
+    @Override
+    public Double parse(String value) {
+      if (value == null) {
+        throw new NumberFormatException(S.get("freqInvalidMessage"));
+      }
+      final var clean = value.trim().replace(',', '.');
+      final double val;
+      try {
+        val = Double.parseDouble(clean);
+      } catch (NumberFormatException e) {
+        throw new NumberFormatException(S.get("freqInvalidMessage"));
+      }
+      if (Double.isNaN(val) || Double.isInfinite(val)) {
+        throw new NumberFormatException(S.get("freqInvalidMessage"));
+      }
+      final var rounded = Math.round(val * 100.0) / 100.0;
+      if (rounded < min) {
+        throw new NumberFormatException(S.get("durationSmallMessage", FORMAT.format(min)));
+      } else if (rounded > max) {
+        throw new NumberFormatException(S.get("durationLargeMessage", FORMAT.format(max)));
+      }
+      return rounded;
+    }
+
+    @Override
+    public String toDisplayString(Double value) {
+      if (value == null) return "";
+      if (Math.abs(value - 1.0) < 1e-9) {
+        return S.get("PORDurationOneValue");
+      } else {
+        return S.get("PORDurationValue", FORMAT.format(value));
+      }
+    }
+
+    @Override
+    public String toStandardString(Double value) {
+      if (value == null) return FORMAT.format(min);
+      return FORMAT.format(value);
+    }
+  }
+
   public static final PowerOnReset FACTORY = new PowerOnReset();
 
   public static class Poker extends InstancePoker {
@@ -85,13 +153,13 @@ public class PowerOnReset extends InstanceFactory {
           StdAttr.FACING,
           PORSIZE,
           PORTRANS,
-          new DurationAttribute("PorHighDuration", S.getter("porHighAttr"), 1, 10, false),
+          new PORDurationAttribute("PorHighDuration", S.getter("porHighAttr"), 0.01, 60.0),
         },
         new Object[] {
           Direction.EAST,
           SIZE_WIDE,
           HTOL,
-          2,
+          2.0,
         });
     setFacingAttribute(StdAttr.FACING);
     setIconName("por.png");
@@ -112,10 +180,21 @@ public class PowerOnReset extends InstanceFactory {
       value = true;
       component = state.getInstance().getComponent();
       simulator = state.getProject().getSimulator();
-      DurationAttribute attr =
-          (DurationAttribute) state.getAttributeSet().getAttribute("PorHighDuration");
-      duration = state.getAttributeValue(attr) * 1000;
+      updateParameters(state);
       tim = new Timer(duration, this);
+      state.setPort(0, Value.createKnown(BitWidth.ONE, tstart), 0);
+      tim.start();
+    }
+
+    private void updateParameters(InstanceState state) {
+      final var attrs = state.getAttributeSet();
+      final var durAttr = attrs.getAttribute("PorHighDuration");
+      final var val = attrs.getValue(durAttr);
+      if (val instanceof Number num) {
+        duration = Math.max(10, (int) Math.round(num.doubleValue() * 1000.0));
+      } else {
+        duration = 2000;
+      }
 
       if (state.getAttributeValue(PORTRANS) == LTOH) {
         tstart = 0;
@@ -124,8 +203,6 @@ public class PowerOnReset extends InstanceFactory {
         tstart = 1;
         tend = 0;
       }
-      state.setPort(0, Value.createKnown(BitWidth.ONE, tstart), 0);
-      tim.start();
     }
 
     public boolean getValue() {
@@ -146,19 +223,7 @@ public class PowerOnReset extends InstanceFactory {
         value = false;
       }
       value = true;
-
-      if (state.getAttributeValue(PORTRANS) == LTOH) {
-        tstart = 0;
-        tend = 1;
-      } else {
-        tstart = 1;
-        tend = 0;
-      }
-
-      DurationAttribute attr =
-          (DurationAttribute) state.getAttributeSet().getAttribute("PorHighDuration");
-      duration = state.getAttributeValue(attr) * 1000;
-
+      updateParameters(state);
       state.setPort(0, Value.createKnown(BitWidth.ONE, tstart), 0);
 
       tim.setInitialDelay(duration);
@@ -267,10 +332,10 @@ public class PowerOnReset extends InstanceFactory {
 
       Font old = g.getFont();
       if  (psize == SIZE_NARROW) {
-        g.setFont(old.deriveFont(6.0f).deriveFont(Font.BOLD));
+        g.setFont(old.deriveFont(5.0f).deriveFont(Font.BOLD));
         offset = 7;
       } else {
-        g.setFont(old.deriveFont(14.0f).deriveFont(Font.BOLD));
+        g.setFont(old.deriveFont(12.0f).deriveFont(Font.BOLD));
         offset = 13;
       }
 
@@ -307,9 +372,8 @@ public class PowerOnReset extends InstanceFactory {
       g.drawLine(x2, y1, x2, y2);
       g.drawLine(x2, y2, x3, y2);
 
-      g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
-      String txt = S.get("PowerOnResetComponent");
-      g.drawString(txt, x + 2, y + offset - 1);
+      g.setColor(Color.BLACK);
+      g.drawString(_ID, x + 2, y + offset - 1);
     }
 
     painter.drawPorts();
