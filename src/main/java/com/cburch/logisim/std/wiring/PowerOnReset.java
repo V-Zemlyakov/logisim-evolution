@@ -439,10 +439,10 @@ public class PowerOnReset extends InstanceFactory {
 
       Font old = g.getFont();
       if  (psize == SIZE_NARROW) {
-        g.setFont(old.deriveFont(6.0f).deriveFont(Font.BOLD));
+        g.setFont(old.deriveFont(5.0f).deriveFont(Font.BOLD));
         offset = 7;
       } else {
-        g.setFont(old.deriveFont(14.0f).deriveFont(Font.BOLD));
+        g.setFont(old.deriveFont(12.0f).deriveFont(Font.BOLD));
         offset = 13;
       }
 
