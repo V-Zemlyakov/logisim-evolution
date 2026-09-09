@@ -894,12 +894,12 @@ public class Pin extends InstanceFactory {
         }
         int x0 = (isOutput) ? -20 : -25;
         int cx = x0;
-        int cy = height / 2 - 12;
+        int cy = height / 2 - 11;
         int cur = 0;
         for (int k = 0; k < wid; k++) {
           if (radix == RadixOption.RADIX_2 && !isOutput) {
             g.setColor(value.get(k).getColor());
-            g.fillOval(cx - 4, cy - 5, 9, 14);
+            g.fillOval(cx - 4, cy - 5, 9, 13);
             g.setColor(Color.WHITE);
           }
           GraphicsUtil.drawCenteredText(g, value.get(k).toDisplayString(), cx, cy);
