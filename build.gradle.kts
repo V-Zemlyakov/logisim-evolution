@@ -18,11 +18,11 @@ import org.gradle.jvm.application.tasks.CreateStartScripts
 
 plugins {
   checkstyle
-  id("io.github.ben-manes.versions") version "0.61.0"
+  id("io.github.ben-manes.versions") version "0.64.0"
   java
   application
   id("com.gradleup.shadow") version "9.6.1"
-  id("org.sonarqube") version "7.4.0.8496"
+  id("org.sonarqube") version "7.5.0.8588"
 }
 
 repositories {
@@ -49,8 +49,8 @@ dependencies {
   implementation("org.drjekyll:colorpicker:2.0.1")
   implementation("at.swimmesberger:swingx-core:1.6.8")
   implementation("org.scijava:swing-checkbox-tree:1.0.2")
-  implementation("org.slf4j:slf4j-api:2.0.18")
-  implementation("org.slf4j:slf4j-simple:2.0.18")
+  implementation("org.slf4j:slf4j-api:2.0.19")
+  implementation("org.slf4j:slf4j-simple:2.0.19")
   implementation("com.formdev:flatlaf:3.7.2")
   implementation("commons-cli:commons-cli:1.11.0")
   implementation("com.vladsch.flexmark:flexmark-all:0.64.8")
@@ -1052,8 +1052,8 @@ tasks {
 
   // Checkstyles related tasks: "checkstylMain" and "checkstyleTest"
   checkstyle {
-    // Checkstyle version to use
-    toolVersion = "10.3.4"
+    // Checkstyle version to use. Should match version in checkstyle workflow.
+    toolVersion = "13.9.0"
 
     // let's use google_checks.xml config provided with Checkstyle.
     // https://stackoverflow.com/a/67513272/1235698
