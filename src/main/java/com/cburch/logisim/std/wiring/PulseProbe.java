@@ -289,7 +289,7 @@ public class PulseProbe extends InstanceFactory {
 
     final var trigger = painter.getAttributeValue(ATTR_TRIGGER);
 
-    // Determine colors based on state
+    // Determine colors based on digital logic states (bright green trueColor / dark green falseColor)
     Color fillColor;
     Color strokeColor;
     Color pulseColor;
@@ -297,33 +297,61 @@ public class PulseProbe extends InstanceFactory {
     if (curVal == Value.UNKNOWN) {
       // Floating / Z-state
       fillColor = isDark ? new Color(15, 30, 50) : new Color(225, 235, 250);
-      strokeColor = new Color(0, 100, 220);
+      strokeColor = Value.unknownColor;
       pulseColor = strokeColor;
     } else if (curVal == Value.ERROR) {
       // Error / Conflict
       fillColor = isDark ? new Color(60, 10, 10) : new Color(255, 220, 220);
-      strokeColor = new Color(220, 0, 0);
-      pulseColor = strokeColor;
-    } else if (isLatched) {
-      // Latched memory state
-      fillColor = isDark ? new Color(70, 30, 0) : new Color(255, 230, 200);
-      strokeColor = new Color(230, 90, 0);
-      pulseColor = strokeColor;
-    } else if (isActive) {
-      // Active high/low signal
-      fillColor = isDark ? new Color(10, 55, 20) : new Color(215, 255, 225);
-      strokeColor = new Color(0, 180, 50);
-      pulseColor = strokeColor;
-    } else if (isHolding) {
-      // Stretched / Hold afterglow
-      fillColor = isDark ? new Color(55, 45, 0) : new Color(255, 250, 210);
-      strokeColor = new Color(220, 150, 0);
+      strokeColor = Value.errorColor;
       pulseColor = strokeColor;
     } else {
-      // Idle / Normal
-      fillColor = isDark ? new Color(35, 35, 35) : new Color(240, 240, 240);
-      strokeColor = new Color(AppPreferences.COMPONENT_COLOR.get());
-      pulseColor = isDark ? new Color(100, 100, 100) : new Color(160, 160, 160);
+      final var isPulseActive = isActive || isHolding || isLatched;
+
+      if (trigger == TRIG_HIGH) {
+        // High pulse trigger (_П_)
+        if (isPulseActive) {
+          // Captured / holding / active high pulse (glitch to '1')
+          fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
+          strokeColor = Value.trueColor;
+          pulseColor = isDark ? Color.WHITE : Color.BLACK;
+        } else {
+          // Idle state at '0' (dark green base)
+          fillColor = isDark ? new Color(12, 35, 18) : new Color(230, 245, 232);
+          strokeColor = Value.falseColor;
+          pulseColor = isDark ? new Color(90, 150, 100) : new Color(60, 120, 70);
+        }
+      } else if (trigger == TRIG_LOW) {
+        // Low pulse trigger (‾|_|‾)
+        if (isPulseActive) {
+          // Captured / holding / active low pulse (glitch to '0')
+          fillColor = isDark ? new Color(15, 45, 22) : new Color(210, 245, 215);
+          strokeColor = Value.falseColor;
+          pulseColor = isDark ? Color.WHITE : Color.BLACK;
+        } else {
+          // Idle state at '1' (bright green base)
+          fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
+          strokeColor = Value.trueColor;
+          pulseColor = isDark ? new Color(180, 255, 190) : new Color(0, 130, 35);
+        }
+      } else { // TRIG_ANY (∿)
+        if (isPulseActive) {
+          final var targetColor = (curVal == Value.TRUE) ? Value.trueColor : Value.falseColor;
+          fillColor = (curVal == Value.TRUE)
+              ? (isDark ? new Color(10, 55, 20) : new Color(205, 255, 215))
+              : (isDark ? new Color(12, 35, 18) : new Color(230, 245, 232));
+          strokeColor = targetColor;
+          pulseColor = isDark ? Color.WHITE : Color.BLACK;
+        } else {
+          final var isHigh = (curVal == Value.TRUE);
+          fillColor = isHigh
+              ? (isDark ? new Color(10, 55, 20) : new Color(205, 255, 215))
+              : (isDark ? new Color(12, 35, 18) : new Color(230, 245, 232));
+          strokeColor = isHigh ? Value.trueColor : Value.falseColor;
+          pulseColor = isHigh
+              ? (isDark ? new Color(180, 255, 190) : new Color(0, 130, 35))
+              : (isDark ? new Color(90, 150, 100) : new Color(60, 120, 70));
+        }
+      }
     }
 
     final int cornerRadius = isSmall ? 2 : 4;
