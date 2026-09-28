@@ -32,6 +32,7 @@ import com.cburch.logisim.tools.key.DirectionConfigurator;
 import com.cburch.logisim.util.GraphicsUtil;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -46,6 +47,15 @@ public class PulseProbe extends InstanceFactory {
    * Do NOT change as it will prevent project files from loading.
    */
   public static final String _ID = "PulseProbe";
+
+  public static final AttributeOption SIZE_SMALL =
+      new AttributeOption("small", S.getter("pulseProbeSizeSmall"));
+  public static final AttributeOption SIZE_MEDIUM =
+      new AttributeOption("medium", S.getter("pulseProbeSizeMedium"));
+
+  public static final Attribute<AttributeOption> ATTR_SIZE =
+      Attributes.forOption(
+          "size", S.getter("pulseProbeSizeAttr"), new AttributeOption[] {SIZE_SMALL, SIZE_MEDIUM});
 
   private static final AttributeOption TRIG_HIGH =
       new AttributeOption("high", S.getter("pulseProbeTriggerHigh"));
@@ -136,7 +146,6 @@ public class PulseProbe extends InstanceFactory {
 
       active = currentIsActive;
       lastVal = curVal;
-      component.fireInvalidated();
     }
 
     private void startHold(boolean isLatchMode) {
@@ -200,6 +209,7 @@ public class PulseProbe extends InstanceFactory {
     setAttributes(
         new Attribute<?>[] {
           StdAttr.FACING,
+          ATTR_SIZE,
           ATTR_TRIGGER,
           ATTR_HOLD_DURATION,
           ATTR_LATCH,
@@ -210,7 +220,8 @@ public class PulseProbe extends InstanceFactory {
           StdAttr.LABEL_VISIBILITY
         },
         new Object[] {
-          Direction.EAST,
+          Direction.SOUTH,
+          SIZE_SMALL,
           TRIG_HIGH,
           500,
           Boolean.FALSE,
@@ -236,12 +247,15 @@ public class PulseProbe extends InstanceFactory {
   @Override
   public Bounds getOffsetBounds(AttributeSet attrs) {
     final var facing = attrs.getValue(StdAttr.FACING);
-    return Bounds.create(0, -10, 20, 20).rotate(Direction.WEST, facing, 0, 0);
+    final var size = attrs.getValue(ATTR_SIZE);
+    final int w = (size == SIZE_MEDIUM) ? 20 : 10;
+    final int h = (size == SIZE_MEDIUM) ? 20 : 10;
+    return Bounds.create(-w / 2, -h, w, h).rotate(Direction.SOUTH, facing, 0, 0);
   }
 
   @Override
   protected void instanceAttributeChanged(Instance instance, Attribute<?> attr) {
-    if (attr == StdAttr.FACING) {
+    if (attr == StdAttr.FACING || attr == ATTR_SIZE) {
       instance.recomputeBounds();
       instance.computeLabelTextField(Instance.AVOID_LEFT);
     } else if (attr == StdAttr.LABEL_LOC) {
@@ -254,15 +268,17 @@ public class PulseProbe extends InstanceFactory {
   public void paintGhost(InstancePainter painter) {
     final var g = painter.getGraphics();
     final var bds = painter.getBounds();
+    final var cornerRadius = (bds.getWidth() <= 10) ? 2 : 4;
     GraphicsUtil.switchToWidth(g, 2);
-    g.drawRoundRect(bds.getX() + 1, bds.getY() + 1, bds.getWidth() - 2, bds.getHeight() - 2, 4, 4);
+    g.drawRoundRect(bds.getX() + 1, bds.getY() + 1, bds.getWidth() - 2, bds.getHeight() - 2, cornerRadius, cornerRadius);
   }
 
   @Override
   public void paintInstance(InstancePainter painter) {
     final var g = painter.getGraphics();
     final var g2 = (Graphics2D) g;
-    final var bds = painter.getBounds().expand(-1);
+    final var isSmall = painter.getBounds().getWidth() <= 10;
+    final var bds = isSmall ? painter.getBounds() : painter.getBounds().expand(-1);
     final var isDark = AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get());
 
     final var probeState = (PulseProbeState) painter.getData();
@@ -310,17 +326,20 @@ public class PulseProbe extends InstanceFactory {
       pulseColor = isDark ? new Color(100, 100, 100) : new Color(160, 160, 160);
     }
 
+    final int cornerRadius = isSmall ? 2 : 4;
+
     // Draw background body
     g.setColor(fillColor);
-    g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), 4, 4);
+    g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
 
     // Draw pulse symbol inside square
     drawPulseSymbol(g2, bds, trigger, pulseColor, curVal);
 
     // Draw outer frame
     g.setColor(strokeColor);
-    GraphicsUtil.switchToWidth(g, (isActive || isHolding || isLatched || curVal == Value.ERROR) ? 2 : 1);
-    g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), 4, 4);
+    final int borderStroke = isSmall ? 1 : ((isActive || isHolding || isLatched || curVal == Value.ERROR) ? 2 : 1);
+    GraphicsUtil.switchToWidth(g, borderStroke);
+    g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
     GraphicsUtil.switchToWidth(g, 1);
 
     painter.drawLabel();
@@ -334,41 +353,53 @@ public class PulseProbe extends InstanceFactory {
     final var h = bds.getHeight();
 
     g2.setColor(color);
-    g2.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+    final var strokeW = (w <= 10) ? 1.0f : 1.6f;
+    g2.setStroke(new BasicStroke(strokeW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
     if (curVal == Value.UNKNOWN) {
-      // Display 'Z'
+      final var fontSize = Math.max(7, (int) (h * 0.7));
+      g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
       GraphicsUtil.drawCenteredText(g2, "Z", x + w / 2, y + h / 2 - 1);
     } else if (curVal == Value.ERROR) {
-      // Display '!'
+      final var fontSize = Math.max(8, (int) (h * 0.75));
+      g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
       GraphicsUtil.drawCenteredText(g2, "!", x + w / 2, y + h / 2 - 1);
     } else if (trigger == TRIG_HIGH) {
       // Pulse _П_
+      final var padX = Math.max(1.5, w * 0.15);
+      final var padY = Math.max(1.5, h * 0.2);
+      final var stepX = (w - 2 * padX) / 4.0;
       final var path = new Path2D.Double();
-      path.moveTo(x + 4, y + h - 5);
-      path.lineTo(x + 7, y + h - 5);
-      path.lineTo(x + 7, y + 5);
-      path.lineTo(x + 13, y + 5);
-      path.lineTo(x + 13, y + h - 5);
-      path.lineTo(x + 16, y + h - 5);
+      path.moveTo(x + padX, y + h - padY);
+      path.lineTo(x + padX + stepX, y + h - padY);
+      path.lineTo(x + padX + stepX, y + padY);
+      path.lineTo(x + padX + 3 * stepX, y + padY);
+      path.lineTo(x + padX + 3 * stepX, y + h - padY);
+      path.lineTo(x + w - padX, y + h - padY);
       g2.draw(path);
     } else if (trigger == TRIG_LOW) {
       // Negative pulse ‾|_|‾
+      final var padX = Math.max(1.5, w * 0.15);
+      final var padY = Math.max(1.5, h * 0.2);
+      final var stepX = (w - 2 * padX) / 4.0;
       final var path = new Path2D.Double();
-      path.moveTo(x + 4, y + 5);
-      path.lineTo(x + 7, y + 5);
-      path.lineTo(x + 7, y + h - 5);
-      path.lineTo(x + 13, y + h - 5);
-      path.lineTo(x + 13, y + 5);
-      path.lineTo(x + 16, y + 5);
+      path.moveTo(x + padX, y + padY);
+      path.lineTo(x + padX + stepX, y + padY);
+      path.lineTo(x + padX + stepX, y + h - padY);
+      path.lineTo(x + padX + 3 * stepX, y + h - padY);
+      path.lineTo(x + padX + 3 * stepX, y + padY);
+      path.lineTo(x + w - padX, y + padY);
       g2.draw(path);
     } else { // TRIG_ANY
       // Pulse wave ∿
+      final var padX = Math.max(1.5, w * 0.15);
+      final var padY = Math.max(1.5, h * 0.2);
+      final var stepX = (w - 2 * padX) / 3.0;
       final var path = new Path2D.Double();
-      path.moveTo(x + 4, y + h / 2);
-      path.lineTo(x + 7, y + 5);
-      path.lineTo(x + 13, y + h - 5);
-      path.lineTo(x + 16, y + h / 2);
+      path.moveTo(x + padX, y + h / 2.0);
+      path.lineTo(x + padX + stepX, y + padY);
+      path.lineTo(x + padX + 2 * stepX, y + h - padY);
+      path.lineTo(x + w - padX, y + h / 2.0);
       g2.draw(path);
     }
   }
