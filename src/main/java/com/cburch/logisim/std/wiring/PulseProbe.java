@@ -39,6 +39,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Path2D;
+import java.util.Objects;
 import javax.swing.Timer;
 
 public class PulseProbe extends InstanceFactory {
@@ -57,11 +58,11 @@ public class PulseProbe extends InstanceFactory {
       Attributes.forOption(
           "size", S.getter("pulseProbeSizeAttr"), new AttributeOption[] {SIZE_SMALL, SIZE_MEDIUM});
 
-  private static final AttributeOption TRIG_HIGH =
+  public static final AttributeOption TRIG_HIGH =
       new AttributeOption("high", S.getter("pulseProbeTriggerHigh"));
-  private static final AttributeOption TRIG_LOW =
+  public static final AttributeOption TRIG_LOW =
       new AttributeOption("low", S.getter("pulseProbeTriggerLow"));
-  private static final AttributeOption TRIG_ANY =
+  public static final AttributeOption TRIG_ANY =
       new AttributeOption("any", S.getter("pulseProbeTriggerAny"));
 
   public static final Attribute<AttributeOption> ATTR_TRIGGER =
@@ -89,6 +90,9 @@ public class PulseProbe extends InstanceFactory {
   public static class PulseProbeState implements InstanceData, Cloneable, ActionListener {
     private InstanceComponent component;
     private Value lastVal = Value.UNKNOWN;
+    private Value baselineVal = Value.UNKNOWN;
+    private boolean initialized = false;
+    private Value caughtVal = null;
     private boolean active = false;
     private boolean holding = false;
     private boolean latched = false;
@@ -112,40 +116,70 @@ public class PulseProbe extends InstanceFactory {
         holdTimer.setDelay(duration);
       }
 
+      if (!initialized) {
+        initialized = true;
+        lastVal = curVal;
+        baselineVal = curVal;
+        return;
+      }
+
+      if (Objects.equals(curVal, lastVal)) {
+        return;
+      }
+
+      final var prevVal = lastVal;
+      lastVal = curVal;
       boolean triggerConditionMet = false;
       boolean currentIsActive = false;
 
       if (trigger == TRIG_HIGH) {
-        currentIsActive = (curVal == Value.TRUE);
-        if (lastVal != Value.TRUE && curVal == Value.TRUE) {
+        currentIsActive = Objects.equals(curVal, Value.TRUE);
+        if (!Objects.equals(prevVal, Value.TRUE) && Objects.equals(curVal, Value.TRUE)) {
+          // Transition into 1 from 0, Z, or ERR
           triggerConditionMet = true;
-        } else if (lastVal == Value.TRUE && curVal != Value.TRUE) {
-          // Falling edge -> start hold
+          caughtVal = Value.TRUE;
+        } else if (Objects.equals(prevVal, Value.TRUE) && !Objects.equals(curVal, Value.TRUE)) {
+          // 1 pulse completed: returning to 0, Z, or ERR -> start hold
+          caughtVal = Value.TRUE;
           startHold(isLatchMode);
         }
       } else if (trigger == TRIG_LOW) {
-        currentIsActive = (curVal == Value.FALSE);
-        if (lastVal != Value.FALSE && curVal == Value.FALSE) {
+        currentIsActive = Objects.equals(curVal, Value.FALSE);
+        if (!Objects.equals(prevVal, Value.FALSE) && Objects.equals(curVal, Value.FALSE)) {
+          // Transition into 0 from 1, Z, or ERR
           triggerConditionMet = true;
-        } else if (lastVal == Value.FALSE && curVal != Value.FALSE) {
-          // Rising edge -> start hold
+          caughtVal = Value.FALSE;
+        } else if (Objects.equals(prevVal, Value.FALSE) && !Objects.equals(curVal, Value.FALSE)) {
+          // 0 pulse completed: returning to 1, Z, or ERR -> start hold
+          caughtVal = Value.FALSE;
           startHold(isLatchMode);
         }
       } else { // TRIG_ANY
-        if (lastVal != Value.UNKNOWN && curVal != lastVal) {
-          triggerConditionMet = true;
+        triggerConditionMet = true;
+        if (!holding && !latched) {
+          baselineVal = prevVal;
+          currentIsActive = true;
+          caughtVal = curVal;
           startHold(isLatchMode);
+        } else {
+          if (Objects.equals(curVal, baselineVal)) {
+            // Returning to baseline after pulse/glitch: maintain caughtVal and extend hold
+            currentIsActive = false;
+            startHold(isLatchMode);
+          } else {
+            // New pulse or change during hold
+            currentIsActive = true;
+            caughtVal = curVal;
+            startHold(isLatchMode);
+          }
         }
       }
 
-      if (triggerConditionMet) {
-        if (isLatchMode) {
-          latched = true;
-        }
+      if (triggerConditionMet && isLatchMode) {
+        latched = true;
       }
 
       active = currentIsActive;
-      lastVal = curVal;
     }
 
     private void startHold(boolean isLatchMode) {
@@ -156,13 +190,19 @@ public class PulseProbe extends InstanceFactory {
       holdTimer.restart();
     }
 
-    public void resetLatch(InstanceState state) {
+    public void resetLatch() {
       latched = false;
       holding = false;
+      caughtVal = null;
+      baselineVal = lastVal;
       holdTimer.stop();
       if (component != null) {
         component.fireInvalidated();
       }
+    }
+
+    public void resetLatch(InstanceState state) {
+      resetLatch();
     }
 
     public boolean isActive() {
@@ -181,6 +221,14 @@ public class PulseProbe extends InstanceFactory {
       return lastVal;
     }
 
+    public Value getCaughtValue() {
+      return caughtVal;
+    }
+
+    public boolean isLastTransitionToTrue() {
+      return caughtVal == Value.TRUE;
+    }
+
     @Override
     public Object clone() {
       try {
@@ -197,6 +245,10 @@ public class PulseProbe extends InstanceFactory {
     public void actionPerformed(ActionEvent e) {
       if (holding) {
         holding = false;
+        if (!latched) {
+          caughtVal = null;
+          baselineVal = lastVal;
+        }
         if (component != null) {
           component.fireInvalidated();
         }
@@ -288,70 +340,53 @@ public class PulseProbe extends InstanceFactory {
     final var isLatched = probeState != null && probeState.isLatched();
 
     final var trigger = painter.getAttributeValue(ATTR_TRIGGER);
+    final var caughtVal = probeState == null ? null : probeState.getCaughtValue();
 
     // Determine colors based on digital logic states (bright green trueColor / dark green falseColor)
     Color fillColor;
     Color strokeColor;
     Color pulseColor;
 
-    if (curVal == Value.UNKNOWN) {
-      // Floating / Z-state
+    final var isPulseActive = isActive || isHolding || isLatched;
+
+    if (isPulseActive) {
+      final var displayVal = caughtVal != null ? caughtVal : (trigger == TRIG_LOW ? Value.FALSE : Value.TRUE);
+      if (displayVal == Value.TRUE) {
+        // High pulse / Rising edge (* -> 1 -> *)
+        fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
+        strokeColor = Value.trueColor;
+        pulseColor = isDark ? Color.WHITE : Color.BLACK;
+      } else if (displayVal == Value.FALSE) {
+        // Low pulse / Falling edge (* -> 0 -> *)
+        fillColor = isDark ? new Color(15, 45, 22) : new Color(210, 245, 215);
+        strokeColor = Value.falseColor;
+        pulseColor = isDark ? Color.WHITE : Color.BLACK;
+      } else if (displayVal == Value.UNKNOWN) {
+        // Floating / Z glitch (* -> Z -> *)
+        fillColor = isDark ? new Color(15, 30, 50) : new Color(225, 235, 250);
+        strokeColor = Value.unknownColor;
+        pulseColor = strokeColor;
+      } else {
+        // Error / Conflict glitch (* -> ERR -> *)
+        fillColor = isDark ? new Color(60, 10, 10) : new Color(255, 220, 220);
+        strokeColor = Value.errorColor;
+        pulseColor = strokeColor;
+      }
+    } else if (curVal == Value.UNKNOWN) {
+      // Floating / Z-state in idle
       fillColor = isDark ? new Color(15, 30, 50) : new Color(225, 235, 250);
       strokeColor = Value.unknownColor;
       pulseColor = strokeColor;
     } else if (curVal == Value.ERROR) {
-      // Error / Conflict
+      // Error / Conflict in idle
       fillColor = isDark ? new Color(60, 10, 10) : new Color(255, 220, 220);
       strokeColor = Value.errorColor;
       pulseColor = strokeColor;
     } else {
-      final var isPulseActive = isActive || isHolding || isLatched;
-
-      if (trigger == TRIG_HIGH) {
-        // High pulse trigger (_П_)
-        if (isPulseActive) {
-          // Captured / holding / active high pulse (glitch to '1')
-          fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
-          strokeColor = Value.trueColor;
-          pulseColor = isDark ? Color.WHITE : Color.BLACK;
-        } else {
-          // Idle state at '0' (dark green base)
-          fillColor = isDark ? new Color(12, 35, 18) : new Color(230, 245, 232);
-          strokeColor = Value.falseColor;
-          pulseColor = isDark ? new Color(90, 150, 100) : new Color(60, 120, 70);
-        }
-      } else if (trigger == TRIG_LOW) {
-        // Low pulse trigger (‾|_|‾)
-        if (isPulseActive) {
-          // Captured / holding / active low pulse (glitch to '0')
-          fillColor = isDark ? new Color(15, 45, 22) : new Color(210, 245, 215);
-          strokeColor = Value.falseColor;
-          pulseColor = isDark ? Color.WHITE : Color.BLACK;
-        } else {
-          // Idle state at '1' (bright green base)
-          fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
-          strokeColor = Value.trueColor;
-          pulseColor = isDark ? new Color(180, 255, 190) : new Color(0, 130, 35);
-        }
-      } else { // TRIG_ANY (∿)
-        if (isPulseActive) {
-          final var targetColor = (curVal == Value.TRUE) ? Value.trueColor : Value.falseColor;
-          fillColor = (curVal == Value.TRUE)
-              ? (isDark ? new Color(10, 55, 20) : new Color(205, 255, 215))
-              : (isDark ? new Color(12, 35, 18) : new Color(230, 245, 232));
-          strokeColor = targetColor;
-          pulseColor = isDark ? Color.WHITE : Color.BLACK;
-        } else {
-          final var isHigh = (curVal == Value.TRUE);
-          fillColor = isHigh
-              ? (isDark ? new Color(10, 55, 20) : new Color(205, 255, 215))
-              : (isDark ? new Color(12, 35, 18) : new Color(230, 245, 232));
-          strokeColor = isHigh ? Value.trueColor : Value.falseColor;
-          pulseColor = isHigh
-              ? (isDark ? new Color(180, 255, 190) : new Color(0, 130, 35))
-              : (isDark ? new Color(90, 150, 100) : new Color(60, 120, 70));
-        }
-      }
+      // Idle state
+      fillColor = isDark ? new Color(30, 30, 30) : Color.WHITE;
+      strokeColor = Color.GRAY;
+      pulseColor = Color.GRAY;
     }
 
     final int cornerRadius = isSmall ? 2 : 4;
@@ -361,11 +396,12 @@ public class PulseProbe extends InstanceFactory {
     g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
 
     // Draw pulse symbol inside square
-    drawPulseSymbol(g2, bds, trigger, pulseColor, curVal);
+    final var displayVal = isPulseActive ? (caughtVal != null ? caughtVal : (trigger == TRIG_LOW ? Value.FALSE : Value.TRUE)) : curVal;
+    drawPulseSymbol(g2, bds, trigger, pulseColor, curVal, displayVal, isPulseActive);
 
     // Draw outer frame
     g.setColor(strokeColor);
-    final int borderStroke = isSmall ? 1 : ((isActive || isHolding || isLatched || curVal == Value.ERROR) ? 2 : 1);
+    final int borderStroke = isSmall ? 1 : ((isPulseActive || curVal == Value.ERROR) ? 2 : 1);
     GraphicsUtil.switchToWidth(g, borderStroke);
     g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
     GraphicsUtil.switchToWidth(g, 1);
@@ -374,7 +410,14 @@ public class PulseProbe extends InstanceFactory {
     painter.drawPorts();
   }
 
-  private void drawPulseSymbol(Graphics2D g2, Bounds bds, AttributeOption trigger, Color color, Value curVal) {
+  private void drawPulseSymbol(
+      Graphics2D g2,
+      Bounds bds,
+      AttributeOption trigger,
+      Color color,
+      Value curVal,
+      Value displayVal,
+      boolean isPulseActive) {
     final var x = bds.getX();
     final var y = bds.getY();
     final var w = bds.getWidth();
@@ -384,11 +427,19 @@ public class PulseProbe extends InstanceFactory {
     final var strokeW = (w <= 10) ? 1.0f : 1.6f;
     g2.setStroke(new BasicStroke(strokeW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
-    if (curVal == Value.UNKNOWN) {
+    if (!isPulseActive && curVal == Value.UNKNOWN) {
       final var fontSize = Math.max(7, (int) (h * 0.7));
       g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
       GraphicsUtil.drawCenteredText(g2, "Z", x + w / 2, y + h / 2 - 1);
-    } else if (curVal == Value.ERROR) {
+    } else if (!isPulseActive && curVal == Value.ERROR) {
+      final var fontSize = Math.max(8, (int) (h * 0.75));
+      g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
+      GraphicsUtil.drawCenteredText(g2, "!", x + w / 2, y + h / 2 - 1);
+    } else if (isPulseActive && displayVal == Value.UNKNOWN) {
+      final var fontSize = Math.max(7, (int) (h * 0.7));
+      g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
+      GraphicsUtil.drawCenteredText(g2, "Z", x + w / 2, y + h / 2 - 1);
+    } else if (isPulseActive && displayVal == Value.ERROR) {
       final var fontSize = Math.max(8, (int) (h * 0.75));
       g2.setFont(new Font("SansSerif", Font.BOLD, fontSize));
       GraphicsUtil.drawCenteredText(g2, "!", x + w / 2, y + h / 2 - 1);
