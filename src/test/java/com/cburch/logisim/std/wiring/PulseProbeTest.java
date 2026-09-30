@@ -39,7 +39,7 @@ class PulseProbeTest {
     final var attrs = factory.createAttributeSet();
 
     assertEquals(Direction.SOUTH, attrs.getValue(StdAttr.FACING));
-    assertEquals(PulseProbe.SIZE_SMALL, attrs.getValue(PulseProbe.ATTR_SIZE));
+    assertEquals(PulseProbe.SIZE_MEDIUM, attrs.getValue(PulseProbe.ATTR_SIZE));
     assertEquals(500, attrs.getValue(PulseProbe.ATTR_HOLD_DURATION));
     assertFalse(attrs.getValue(PulseProbe.ATTR_LATCH));
     assertNotNull(attrs.getValue(PulseProbe.ATTR_TRIGGER));
@@ -50,12 +50,13 @@ class PulseProbeTest {
     final var factory = PulseProbe.FACTORY;
     final var attrs = factory.createAttributeSet();
 
-    // Default Small (10x10), facing SOUTH -> port is at bottom center (0, 0), body is x: [-5, 5], y: [-10, 0]
-    final var bdsSouth = factory.getOffsetBounds(attrs);
-    assertEquals(-5, bdsSouth.getX());
-    assertEquals(-10, bdsSouth.getY());
-    assertEquals(10, bdsSouth.getWidth());
-    assertEquals(10, bdsSouth.getHeight());
+    // Small (10x10), facing SOUTH -> port is at bottom center (0, 0), body is x: [-5, 5], y: [-10, 0]
+    attrs.setValue(PulseProbe.ATTR_SIZE, PulseProbe.SIZE_SMALL);
+    final var bdsSouthSmall = factory.getOffsetBounds(attrs);
+    assertEquals(-5, bdsSouthSmall.getX());
+    assertEquals(-10, bdsSouthSmall.getY());
+    assertEquals(10, bdsSouthSmall.getWidth());
+    assertEquals(10, bdsSouthSmall.getHeight());
 
     // Medium (20x20), facing SOUTH
     attrs.setValue(PulseProbe.ATTR_SIZE, PulseProbe.SIZE_MEDIUM);
@@ -72,6 +73,39 @@ class PulseProbeTest {
     assertEquals(-10, bdsWest.getY());
     assertEquals(20, bdsWest.getWidth());
     assertEquals(20, bdsWest.getHeight());
+
+    // Large (100x30), facing SOUTH
+    attrs.setValue(PulseProbe.ATTR_SIZE, PulseProbe.SIZE_LARGE);
+    attrs.setValue(StdAttr.FACING, Direction.SOUTH);
+    final var bdsLargeSouth = factory.getOffsetBounds(attrs);
+    assertEquals(-15, bdsLargeSouth.getX());
+    assertEquals(-30, bdsLargeSouth.getY());
+    assertEquals(100, bdsLargeSouth.getWidth());
+    assertEquals(30, bdsLargeSouth.getHeight());
+
+    // Large (100x30), facing NORTH
+    attrs.setValue(StdAttr.FACING, Direction.NORTH);
+    final var bdsLargeNorth = factory.getOffsetBounds(attrs);
+    assertEquals(-15, bdsLargeNorth.getX());
+    assertEquals(0, bdsLargeNorth.getY());
+    assertEquals(100, bdsLargeNorth.getWidth());
+    assertEquals(30, bdsLargeNorth.getHeight());
+
+    // Large (100x30), facing WEST
+    attrs.setValue(StdAttr.FACING, Direction.WEST);
+    final var bdsLargeWest = factory.getOffsetBounds(attrs);
+    assertEquals(0, bdsLargeWest.getX());
+    assertEquals(-15, bdsLargeWest.getY());
+    assertEquals(100, bdsLargeWest.getWidth());
+    assertEquals(30, bdsLargeWest.getHeight());
+
+    // Large (100x30), facing EAST
+    attrs.setValue(StdAttr.FACING, Direction.EAST);
+    final var bdsLargeEast = factory.getOffsetBounds(attrs);
+    assertEquals(-100, bdsLargeEast.getX());
+    assertEquals(-15, bdsLargeEast.getY());
+    assertEquals(100, bdsLargeEast.getWidth());
+    assertEquals(30, bdsLargeEast.getHeight());
   }
 
   @Test

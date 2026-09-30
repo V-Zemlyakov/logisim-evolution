@@ -208,6 +208,11 @@ public class InstancePainter implements InstanceState {
   }
 
   @Override
+  public int getStepCount() {
+    return context.getCircuitState().getPropagator().getClock();
+  }
+
+  @Override
   public boolean isCircuitRoot() {
     return !context.getCircuitState().isSubstate();
   }

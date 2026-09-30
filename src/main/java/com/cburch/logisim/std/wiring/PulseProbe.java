@@ -53,10 +53,12 @@ public class PulseProbe extends InstanceFactory {
       new AttributeOption("small", S.getter("pulseProbeSizeSmall"));
   public static final AttributeOption SIZE_MEDIUM =
       new AttributeOption("medium", S.getter("pulseProbeSizeMedium"));
+  public static final AttributeOption SIZE_LARGE =
+      new AttributeOption("large", S.getter("pulseProbeSizeLarge"));
 
   public static final Attribute<AttributeOption> ATTR_SIZE =
       Attributes.forOption(
-          "size", S.getter("pulseProbeSizeAttr"), new AttributeOption[] {SIZE_SMALL, SIZE_MEDIUM});
+          "size", S.getter("pulseProbeSizeAttr"), new AttributeOption[] {SIZE_SMALL, SIZE_MEDIUM, SIZE_LARGE});
 
   public static final AttributeOption TRIG_HIGH =
       new AttributeOption("high", S.getter("pulseProbeTriggerHigh"));
@@ -98,6 +100,13 @@ public class PulseProbe extends InstanceFactory {
     private boolean latched = false;
     private Timer holdTimer;
 
+    private long pulseStartNanos = 0;
+    private int pulseStartTicks = 0;
+    private int pulseStartSteps = 0;
+    private long measuredDurationNanos = -1;
+    private int measuredDurationTicks = -1;
+    private int measuredDurationSteps = -1;
+
     public PulseProbeState(InstanceState state) {
       this.component = state.getInstance().getComponent();
       final var duration = state.getAttributeValue(ATTR_HOLD_DURATION);
@@ -131,27 +140,46 @@ public class PulseProbe extends InstanceFactory {
       lastVal = curVal;
       boolean triggerConditionMet = false;
       boolean currentIsActive = false;
+      final var currentNanos = System.nanoTime();
+      final var currentTicks = state.getTickCount();
+      final var currentSteps = state.getStepCount();
 
       if (trigger == TRIG_HIGH) {
         currentIsActive = Objects.equals(curVal, Value.TRUE);
         if (!Objects.equals(prevVal, Value.TRUE) && Objects.equals(curVal, Value.TRUE)) {
-          // Transition into 1 from 0, Z, or ERR
+          // Transition into 1 from 0, Z, or ERR -> pulse begins
           triggerConditionMet = true;
           caughtVal = Value.TRUE;
+          pulseStartNanos = currentNanos;
+          pulseStartTicks = currentTicks;
+          pulseStartSteps = currentSteps;
         } else if (Objects.equals(prevVal, Value.TRUE) && !Objects.equals(curVal, Value.TRUE)) {
-          // 1 pulse completed: returning to 0, Z, or ERR -> start hold
+          // 1 pulse completed: returning to 0, Z, or ERR -> record duration and start hold
           caughtVal = Value.TRUE;
+          if (pulseStartNanos > 0) {
+            measuredDurationNanos = currentNanos - pulseStartNanos;
+            measuredDurationTicks = Math.max(0, currentTicks - pulseStartTicks);
+            measuredDurationSteps = Math.max(0, currentSteps - pulseStartSteps);
+          }
           startHold(isLatchMode);
         }
       } else if (trigger == TRIG_LOW) {
         currentIsActive = Objects.equals(curVal, Value.FALSE);
         if (!Objects.equals(prevVal, Value.FALSE) && Objects.equals(curVal, Value.FALSE)) {
-          // Transition into 0 from 1, Z, or ERR
+          // Transition into 0 from 1, Z, or ERR -> pulse begins
           triggerConditionMet = true;
           caughtVal = Value.FALSE;
+          pulseStartNanos = currentNanos;
+          pulseStartTicks = currentTicks;
+          pulseStartSteps = currentSteps;
         } else if (Objects.equals(prevVal, Value.FALSE) && !Objects.equals(curVal, Value.FALSE)) {
-          // 0 pulse completed: returning to 1, Z, or ERR -> start hold
+          // 0 pulse completed: returning to 1, Z, or ERR -> record duration and start hold
           caughtVal = Value.FALSE;
+          if (pulseStartNanos > 0) {
+            measuredDurationNanos = currentNanos - pulseStartNanos;
+            measuredDurationTicks = Math.max(0, currentTicks - pulseStartTicks);
+            measuredDurationSteps = Math.max(0, currentSteps - pulseStartSteps);
+          }
           startHold(isLatchMode);
         }
       } else { // TRIG_ANY
@@ -160,16 +188,32 @@ public class PulseProbe extends InstanceFactory {
           baselineVal = prevVal;
           currentIsActive = true;
           caughtVal = curVal;
+          pulseStartNanos = currentNanos;
+          pulseStartTicks = currentTicks;
+          pulseStartSteps = currentSteps;
           startHold(isLatchMode);
         } else {
           if (Objects.equals(curVal, baselineVal)) {
-            // Returning to baseline after pulse/glitch: maintain caughtVal and extend hold
+            // Returning to baseline after pulse/glitch: capture duration
+            if (pulseStartNanos > 0) {
+              measuredDurationNanos = currentNanos - pulseStartNanos;
+              measuredDurationTicks = Math.max(0, currentTicks - pulseStartTicks);
+              measuredDurationSteps = Math.max(0, currentSteps - pulseStartSteps);
+            }
             currentIsActive = false;
             startHold(isLatchMode);
           } else {
             // New pulse or change during hold
+            if (pulseStartNanos > 0) {
+              measuredDurationNanos = currentNanos - pulseStartNanos;
+              measuredDurationTicks = Math.max(0, currentTicks - pulseStartTicks);
+              measuredDurationSteps = Math.max(0, currentSteps - pulseStartSteps);
+            }
             currentIsActive = true;
             caughtVal = curVal;
+            pulseStartNanos = currentNanos;
+            pulseStartTicks = currentTicks;
+            pulseStartSteps = currentSteps;
             startHold(isLatchMode);
           }
         }
@@ -195,6 +239,12 @@ public class PulseProbe extends InstanceFactory {
       holding = false;
       caughtVal = null;
       baselineVal = lastVal;
+      pulseStartNanos = 0;
+      pulseStartTicks = 0;
+      pulseStartSteps = 0;
+      measuredDurationNanos = -1;
+      measuredDurationTicks = -1;
+      measuredDurationSteps = -1;
       holdTimer.stop();
       if (component != null) {
         component.fireInvalidated();
@@ -229,6 +279,30 @@ public class PulseProbe extends InstanceFactory {
       return caughtVal == Value.TRUE;
     }
 
+    public long getMeasuredDurationNanos() {
+      return measuredDurationNanos;
+    }
+
+    public int getMeasuredDurationTicks() {
+      return measuredDurationTicks;
+    }
+
+    public int getMeasuredDurationSteps() {
+      return measuredDurationSteps;
+    }
+
+    public long getPulseStartNanos() {
+      return pulseStartNanos;
+    }
+
+    public int getPulseStartTicks() {
+      return pulseStartTicks;
+    }
+
+    public int getPulseStartSteps() {
+      return pulseStartSteps;
+    }
+
     @Override
     public Object clone() {
       try {
@@ -248,6 +322,9 @@ public class PulseProbe extends InstanceFactory {
         if (!latched) {
           caughtVal = null;
           baselineVal = lastVal;
+          pulseStartNanos = 0;
+          pulseStartTicks = 0;
+          pulseStartSteps = 0;
         }
         if (component != null) {
           component.fireInvalidated();
@@ -273,7 +350,7 @@ public class PulseProbe extends InstanceFactory {
         },
         new Object[] {
           Direction.SOUTH,
-          SIZE_SMALL,
+          SIZE_MEDIUM,
           TRIG_HIGH,
           500,
           Boolean.FALSE,
@@ -300,6 +377,17 @@ public class PulseProbe extends InstanceFactory {
   public Bounds getOffsetBounds(AttributeSet attrs) {
     final var facing = attrs.getValue(StdAttr.FACING);
     final var size = attrs.getValue(ATTR_SIZE);
+    if (size == SIZE_LARGE) {
+      if (facing == Direction.SOUTH) {
+        return Bounds.create(-15, -30, 100, 30);
+      } else if (facing == Direction.NORTH) {
+        return Bounds.create(-15, 0, 100, 30);
+      } else if (facing == Direction.WEST) {
+        return Bounds.create(0, -15, 100, 30);
+      } else { // EAST
+        return Bounds.create(-100, -15, 100, 30);
+      }
+    }
     final int w = (size == SIZE_MEDIUM) ? 20 : 10;
     final int h = (size == SIZE_MEDIUM) ? 20 : 10;
     return Bounds.create(-w / 2, -h, w, h).rotate(Direction.SOUTH, facing, 0, 0);
@@ -320,7 +408,8 @@ public class PulseProbe extends InstanceFactory {
   public void paintGhost(InstancePainter painter) {
     final var g = painter.getGraphics();
     final var bds = painter.getBounds();
-    final var cornerRadius = (bds.getWidth() <= 10) ? 2 : 4;
+    final var isLarge = painter.getAttributeValue(ATTR_SIZE) == SIZE_LARGE;
+    final var cornerRadius = isLarge ? 5 : ((bds.getWidth() <= 10) ? 2 : 4);
     GraphicsUtil.switchToWidth(g, 2);
     g.drawRoundRect(bds.getX() + 1, bds.getY() + 1, bds.getWidth() - 2, bds.getHeight() - 2, cornerRadius, cornerRadius);
   }
@@ -329,7 +418,9 @@ public class PulseProbe extends InstanceFactory {
   public void paintInstance(InstancePainter painter) {
     final var g = painter.getGraphics();
     final var g2 = (Graphics2D) g;
-    final var isSmall = painter.getBounds().getWidth() <= 10;
+    final var size = painter.getAttributeValue(ATTR_SIZE);
+    final var isLarge = (size == SIZE_LARGE);
+    final var isSmall = (size == SIZE_SMALL);
     final var bds = isSmall ? painter.getBounds() : painter.getBounds().expand(-1);
     final var isDark = AppPreferences.isDarkTheme(AppPreferences.LookAndFeel.get());
 
@@ -340,6 +431,8 @@ public class PulseProbe extends InstanceFactory {
     final var isLatched = probeState != null && probeState.isLatched();
 
     final var trigger = painter.getAttributeValue(ATTR_TRIGGER);
+    final var duration = painter.getAttributeValue(ATTR_HOLD_DURATION);
+    final var isLatchMode = painter.getAttributeValue(ATTR_LATCH);
     final var caughtVal = probeState == null ? null : probeState.getCaughtValue();
 
     // Determine colors based on digital logic states (bright green trueColor / dark green falseColor)
@@ -348,9 +441,9 @@ public class PulseProbe extends InstanceFactory {
     Color pulseColor;
 
     final var isPulseActive = isActive || isHolding || isLatched;
+    final var displayVal = isPulseActive ? (caughtVal != null ? caughtVal : (trigger == TRIG_LOW ? Value.FALSE : Value.TRUE)) : curVal;
 
     if (isPulseActive) {
-      final var displayVal = caughtVal != null ? caughtVal : (trigger == TRIG_LOW ? Value.FALSE : Value.TRUE);
       if (displayVal == Value.TRUE) {
         // High pulse / Rising edge (* -> 1 -> *)
         fillColor = isDark ? new Color(10, 55, 20) : new Color(205, 255, 215);
@@ -389,22 +482,110 @@ public class PulseProbe extends InstanceFactory {
       pulseColor = Color.GRAY;
     }
 
-    final int cornerRadius = isSmall ? 2 : 4;
+    if (isLarge) {
+      // Large panel body
+      final var panelBg = isDark ? new Color(32, 35, 41) : new Color(246, 248, 250);
+      final var panelBorder = isDark ? new Color(65, 70, 80) : new Color(190, 195, 205);
+      g.setColor(panelBg);
+      g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), 6, 6);
 
-    // Draw background body
-    g.setColor(fillColor);
-    g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
+      // Left 20x20 indicator square
+      final var indBds = Bounds.create(bds.getX() + 5, bds.getY() + 5, 20, 20);
+      g.setColor(fillColor);
+      g.fillRoundRect(indBds.getX(), indBds.getY(), indBds.getWidth(), indBds.getHeight(), 3, 3);
+      drawPulseSymbol(g2, indBds, trigger, pulseColor, curVal, displayVal, isPulseActive);
+      g.setColor(strokeColor);
+      GraphicsUtil.switchToWidth(g, isPulseActive ? 2 : 1);
+      g.drawRoundRect(indBds.getX(), indBds.getY(), indBds.getWidth(), indBds.getHeight(), 3, 3);
 
-    // Draw pulse symbol inside square
-    final var displayVal = isPulseActive ? (caughtVal != null ? caughtVal : (trigger == TRIG_LOW ? Value.FALSE : Value.TRUE)) : curVal;
-    drawPulseSymbol(g2, bds, trigger, pulseColor, curVal, displayVal, isPulseActive);
+      // Divider line
+      g.setColor(isDark ? new Color(55, 60, 70) : new Color(215, 220, 230));
+      GraphicsUtil.switchToWidth(g, 1);
+      g.drawLine(bds.getX() + 29, bds.getY() + 3, bds.getX() + 29, bds.getY() + bds.getHeight() - 3);
 
-    // Draw outer frame
-    g.setColor(strokeColor);
-    final int borderStroke = isSmall ? 1 : ((isPulseActive || curVal == Value.ERROR) ? 2 : 1);
-    GraphicsUtil.switchToWidth(g, borderStroke);
-    g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
-    GraphicsUtil.switchToWidth(g, 1);
+      // Right parameters text panel
+      final var labelColor = isDark ? new Color(155, 160, 170) : new Color(105, 110, 120);
+      final var valColor = isDark ? Color.WHITE : Color.BLACK;
+      final var fontPlain = new Font("SansSerif", Font.PLAIN, 8);
+      g2.setFont(fontPlain);
+
+      // Line 1: Trigger
+      g2.setColor(labelColor);
+      g2.drawString("Trig:", bds.getX() + 33, bds.getY() + 11);
+      final var trigStr = (trigger == TRIG_HIGH) ? "High (*->1)" : ((trigger == TRIG_LOW) ? "Low (*->0)" : "Any (∿)");
+      g2.setColor(valColor);
+      g2.drawString(trigStr, bds.getX() + 54, bds.getY() + 11);
+
+      // Line 2: Status / What triggered
+      g2.setColor(labelColor);
+      g2.drawString("Stat:", bds.getX() + 33, bds.getY() + 19);
+      String statStr;
+      Color statColor;
+      if (isLatched) {
+        statStr = "LATCHED";
+        statColor = isDark ? new Color(120, 230, 140) : new Color(0, 140, 40);
+      } else if (isHolding || isActive) {
+        if (displayVal == Value.TRUE) {
+          statStr = "PULSE 1";
+          statColor = isDark ? new Color(120, 230, 140) : new Color(0, 140, 40);
+        } else if (displayVal == Value.FALSE) {
+          statStr = "PULSE 0";
+          statColor = isDark ? new Color(100, 200, 120) : new Color(0, 100, 30);
+        } else if (displayVal == Value.UNKNOWN) {
+          statStr = "GLITCH Z";
+          statColor = Value.unknownColor;
+        } else {
+          statStr = "GLITCH ERR";
+          statColor = Value.errorColor;
+        }
+      } else {
+        statStr = "IDLE";
+        statColor = labelColor;
+      }
+      g2.setColor(statColor);
+      g2.setFont(new Font("SansSerif", isPulseActive ? Font.BOLD : Font.PLAIN, 8));
+      g2.drawString(statStr, bds.getX() + 54, bds.getY() + 19);
+
+      // Line 3: Pulse duration
+      g2.setFont(fontPlain);
+      g2.setColor(labelColor);
+      g2.drawString("Dur:", bds.getX() + 33, bds.getY() + 27);
+      String durStr;
+      if (probeState != null && probeState.isActive() && probeState.getPulseStartNanos() > 0) {
+        // Currently measuring active ongoing pulse
+        final var elapsedNanos = System.nanoTime() - probeState.getPulseStartNanos();
+        durStr = formatDuration(0, elapsedNanos);
+      } else if (probeState != null && probeState.getMeasuredDurationNanos() >= 0) {
+        // Measured duration of last completed pulse
+        durStr = formatDuration(probeState.getMeasuredDurationSteps(), probeState.getMeasuredDurationNanos());
+      } else {
+        durStr = "---";
+      }
+      g2.setColor(valColor);
+      g2.drawString(durStr, bds.getX() + 54, bds.getY() + 27);
+
+      // Panel outer frame
+      g.setColor(panelBorder);
+      GraphicsUtil.switchToWidth(g, 1);
+      g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), 6, 6);
+    } else {
+      // Small or Medium square indicator
+      final int cornerRadius = isSmall ? 2 : 4;
+
+      // Draw background body
+      g.setColor(fillColor);
+      g.fillRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
+
+      // Draw pulse symbol inside square
+      drawPulseSymbol(g2, bds, trigger, pulseColor, curVal, displayVal, isPulseActive);
+
+      // Draw outer frame
+      g.setColor(strokeColor);
+      final int borderStroke = isSmall ? 1 : ((isPulseActive || curVal == Value.ERROR) ? 2 : 1);
+      GraphicsUtil.switchToWidth(g, borderStroke);
+      g.drawRoundRect(bds.getX(), bds.getY(), bds.getWidth(), bds.getHeight(), cornerRadius, cornerRadius);
+      GraphicsUtil.switchToWidth(g, 1);
+    }
 
     painter.drawLabel();
     painter.drawPorts();
@@ -481,6 +662,27 @@ public class PulseProbe extends InstanceFactory {
       path.lineTo(x + w - padX, y + h / 2.0);
       g2.draw(path);
     }
+  }
+
+  private static String formatDuration(int steps, long nanos) {
+    final String timeStr;
+    if (nanos < 1_000L) {
+      timeStr = nanos + "ns";
+    } else if (nanos < 1_000_000L) {
+      final var micros = nanos / 1000.0;
+      timeStr = (micros >= 10.0) ? String.format("%.0fµs", micros) : String.format("%.1fµs", micros);
+    } else if (nanos < 1_000_000_000L) {
+      final var millis = nanos / 1_000_000.0;
+      timeStr = (millis >= 10.0) ? String.format("%.0fms", millis) : String.format("%.1fms", millis);
+    } else {
+      final var sec = nanos / 1_000_000_000.0;
+      timeStr = String.format("%.2fs", sec);
+    }
+
+    if (steps > 0) {
+      return steps + "τ (" + timeStr + ")";
+    }
+    return timeStr;
   }
 
   @Override

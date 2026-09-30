@@ -101,6 +101,11 @@ public class InstanceStateImpl implements InstanceState {
   }
 
   @Override
+  public int getStepCount() {
+    return circuitState.getPropagator().getClock();
+  }
+
+  @Override
   public boolean isCircuitRoot() {
     return !circuitState.isSubstate();
   }

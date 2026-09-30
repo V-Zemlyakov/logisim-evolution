@@ -161,6 +161,10 @@ public class Propagator {
     return halfClockCycles;
   }
 
+  public int getClock() {
+    return clock;
+  }
+
   public boolean isOscillating() {
     return isOscillating;
   }

@@ -37,6 +37,10 @@ public interface InstanceState {
 
   int getTickCount();
 
+  default int getStepCount() {
+    return 0;
+  }
+
   boolean isCircuitRoot();
 
   boolean isPortConnected(int portIndex);
