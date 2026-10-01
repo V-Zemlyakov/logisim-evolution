@@ -295,6 +295,178 @@ public class NE555 extends InstanceFactory {
     }
   }
 
+  private static NE555State getOrCreateState(InstanceState state) {
+    var ne555State = (NE555State) state.getData();
+    if (ne555State == null) {
+      ne555State = new NE555State(state);
+      state.setData(ne555State);
+    }
+    return ne555State;
+  }
+
+  private static void applyVcc(double vcc, NE555State ne555State) {
+    ne555State.vccVoltage = Math.max(0.1, vcc);
+  }
+
+  private static void updateCap(AttributeSet attrs, NE555State ne555State, double dt,
+      double targetVoltage, double rCharge) {
+    if (rCharge > 0) {
+      final var capacitance = getCapFarad(attrs);
+      final var timeConstant = rCharge * capacitance;
+      if (timeConstant > 1e-18) {
+        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
+        final var clampedFraction = Math.min(chargeFraction, 1.0 - 1e-6);
+        ne555State.capVoltage += (targetVoltage - ne555State.capVoltage) * clampedFraction;
+      } else {
+        ne555State.capVoltage = targetVoltage;
+      }
+    }
+  }
+
+  public static double getPeriodSeconds(AttributeSet attrs) {
+    final var mode = getMode(attrs);
+    final var capacitance = getCapFarad(attrs);
+    if (mode == MODE_ASTABLE) {
+      final var r2Fixed = FIXED_RFIXED;
+      final var r1 = getResistanceOhm(attrs);
+      return 0.693 * (r2Fixed + 2.0 * r1) * capacitance;
+    } else {
+      final var r1 = getResistanceOhm(attrs);
+      return 1.1 * r1 * capacitance;
+    }
+  }
+
+  public static double getFrequencyHz(AttributeSet attrs) {
+    final var mode = getMode(attrs);
+    if (mode != MODE_ASTABLE) return 0.0;
+    final var period = getPeriodSeconds(attrs);
+    return (period > 0) ? (1.0 / period) : 0.0;
+  }
+
+  public static String formatTime(double seconds) {
+    if (seconds <= 0) return "0s";
+    if (seconds < 1e-6) return String.format(java.util.Locale.US, "%.2f ns", seconds * 1e9);
+    if (seconds < 1e-3) return String.format(java.util.Locale.US, "%.2f µs", seconds * 1e6);
+    if (seconds < 1.0) return String.format(java.util.Locale.US, "%.2f ms", seconds * 1e3);
+    return String.format(java.util.Locale.US, "%.2f s", seconds);
+  }
+
+  public static String formatFrequency(double hz) {
+    if (hz <= 0) return "N/A";
+    if (hz >= 1e6) return String.format(java.util.Locale.US, "%.2f MHz", hz / 1e6);
+    if (hz >= 1e3) return String.format(java.util.Locale.US, "%.2f kHz", hz / 1e3);
+    return String.format(java.util.Locale.US, "%.2f Hz", hz);
+  }
+
+  @Override
+  public void propagate(InstanceState state) {
+    final var ne555State = getOrCreateState(state);
+    ne555State.updateReferences(state);
+    final var attrs = state.getAttributeSet();
+    final var mode = getMode(attrs);
+    final var vcc = getVcc();
+    applyVcc(vcc, ne555State);
+
+    final var trigPortValue = (mode == MODE_MONOSTABLE) ? state.getPortValue(PIN_TRIG) : Value.UNKNOWN;
+    final var trigLow = (trigPortValue == Value.FALSE);
+
+    final var upperThreshold = getCtrlVoltage(ne555State);
+
+    final var now = System.nanoTime();
+    final var proj = state.getProject();
+    final var sim = proj != null ? proj.getSimulator() : null;
+    final var isSimRunning = sim != null && sim.isAutoPropagating();
+
+    final var dt = isSimRunning ? Math.min((now - ne555State.lastUpdateNanos) / 1e9, 0.1) : 0.0;
+    ne555State.lastUpdateNanos = now;
+
+    if (mode == MODE_ASTABLE) {
+      final var lowerThreshold = ne555State.vccVoltage / 3.0;
+      doAstable(state, ne555State, lowerThreshold, upperThreshold, dt);
+    } else {
+      doMonostable(state, ne555State, trigLow, upperThreshold, dt);
+    }
+
+    setOutputs(state, ne555State, vcc);
+  }
+
+  private static void doAstable(InstanceState state, NE555State ne555State,
+      double lowerThreshold, double upperThreshold, double dt) {
+    final var r2Fixed = FIXED_RFIXED;
+    final var r1 = getResistanceOhm(state.getAttributeSet());
+    final var vcc = ne555State.vccVoltage;
+
+    if (!ne555State.running && !ne555State.waiting) {
+      ne555State.capVoltage = lowerThreshold;
+      ne555State.output = true;
+      ne555State.disch = false;
+      ne555State.running = true;
+    }
+
+    if (ne555State.output && !ne555State.disch) {
+      updateCap(state.getAttributeSet(), ne555State, dt, vcc, r2Fixed + r1);
+      if (ne555State.capVoltage >= upperThreshold) {
+        ne555State.output = false;
+        ne555State.disch = true;
+      }
+    } else if (!ne555State.output && ne555State.disch) {
+      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, r1);
+      if (ne555State.capVoltage <= lowerThreshold) {
+        ne555State.output = true;
+        ne555State.disch = false;
+      }
+    }
+  }
+
+  private static void doMonostable(InstanceState state, NE555State ne555State,
+      boolean trigLow, double upperThreshold, double dt) {
+    final var resistance = getResistanceOhm(state.getAttributeSet());
+    final var capacitance = getCapFarad(state.getAttributeSet());
+
+    if (!ne555State.running && !ne555State.waiting) {
+      ne555State.output = false;
+      ne555State.disch = true;
+      ne555State.capVoltage = 0.0;
+      if (trigLow) {
+        ne555State.running = true;
+        ne555State.output = true;
+        ne555State.disch = false;
+        ne555State.activeElapsedSec = 0.0;
+      }
+    } else if (ne555State.running) {
+      ne555State.output = true;
+      ne555State.disch = false;
+      final var pulseWidth = 1.1 * resistance * capacitance;
+      ne555State.activeElapsedSec += dt;
+      final var vcc = ne555State.vccVoltage;
+      final var timeConstant = resistance * capacitance;
+      if (timeConstant > 1e-18) {
+        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
+        ne555State.capVoltage += (vcc - ne555State.capVoltage) * chargeFraction;
+      } else {
+        ne555State.capVoltage = vcc;
+      }
+      if (ne555State.capVoltage >= upperThreshold || ne555State.activeElapsedSec >= pulseWidth) {
+        ne555State.output = false;
+        ne555State.disch = true;
+        ne555State.running = false;
+        ne555State.waiting = true;
+      }
+    } else if (ne555State.waiting) {
+      ne555State.output = false;
+      ne555State.disch = true;
+      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, 1000.0);
+      if (!trigLow && ne555State.capVoltage < 0.1) {
+        ne555State.waiting = false;
+      }
+    }
+  }
+
+  private static void setOutputs(InstanceState state, NE555State ne555State, double vcc) {
+    final var outputValue = ne555State.output ? Value.TRUE : Value.FALSE;
+    state.setPort(PIN_OUT, outputValue, 0);
+  }
+
   @Override
   public void paintGhost(InstancePainter painter) {
     final var g = painter.getGraphics();
@@ -516,41 +688,6 @@ public class NE555 extends InstanceFactory {
     g.fillOval(x - 2, y - 2, 4, 4);
   }
 
-  public static double getPeriodSeconds(AttributeSet attrs) {
-    final var mode = getMode(attrs);
-    final var capacitance = getCapFarad(attrs);
-    if (mode == MODE_ASTABLE) {
-      final var r2Fixed = FIXED_RFIXED;
-      final var r1 = getResistanceOhm(attrs);
-      return 0.693 * (r2Fixed + 2.0 * r1) * capacitance;
-    } else {
-      final var r1 = getResistanceOhm(attrs);
-      return 1.1 * r1 * capacitance;
-    }
-  }
-
-  public static double getFrequencyHz(AttributeSet attrs) {
-    final var mode = getMode(attrs);
-    if (mode != MODE_ASTABLE) return 0.0;
-    final var period = getPeriodSeconds(attrs);
-    return (period > 0) ? (1.0 / period) : 0.0;
-  }
-
-  public static String formatTime(double seconds) {
-    if (seconds <= 0) return "0s";
-    if (seconds < 1e-6) return String.format(java.util.Locale.US, "%.2f ns", seconds * 1e9);
-    if (seconds < 1e-3) return String.format(java.util.Locale.US, "%.2f µs", seconds * 1e6);
-    if (seconds < 1.0) return String.format(java.util.Locale.US, "%.2f ms", seconds * 1e3);
-    return String.format(java.util.Locale.US, "%.2f s", seconds);
-  }
-
-  public static String formatFrequency(double hz) {
-    if (hz <= 0) return "N/A";
-    if (hz >= 1e6) return String.format(java.util.Locale.US, "%.2f MHz", hz / 1e6);
-    if (hz >= 1e3) return String.format(java.util.Locale.US, "%.2f kHz", hz / 1e3);
-    return String.format(java.util.Locale.US, "%.2f Hz", hz);
-  }
-
   private void drawTimingInfo(Graphics g, AttributeSet attrs, AttributeOption mode) {
     g.setColor(new Color(AppPreferences.COMPONENT_COLOR.get()));
     g.setFont(g.getFont().deriveFont(5.5f).deriveFont(java.awt.Font.BOLD));
@@ -563,142 +700,5 @@ public class NE555 extends InstanceFactory {
       final var displayStr = "T=" + formatTime(period);
       g.drawString(displayStr, -70, 56);
     }
-  }
-
-  private static NE555State getOrCreateState(InstanceState state) {
-    var ne555State = (NE555State) state.getData();
-    if (ne555State == null) {
-      ne555State = new NE555State(state);
-      state.setData(ne555State);
-    }
-    return ne555State;
-  }
-
-  private static void applyVcc(double vcc, NE555State ne555State) {
-    ne555State.vccVoltage = Math.max(0.1, vcc);
-  }
-
-  private static void updateCap(AttributeSet attrs, NE555State ne555State, double dt,
-      double targetVoltage, double rCharge) {
-    if (rCharge > 0) {
-      final var capacitance = getCapFarad(attrs);
-      final var timeConstant = rCharge * capacitance;
-      if (timeConstant > 1e-18) {
-        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
-        final var clampedFraction = Math.min(chargeFraction, 1.0 - 1e-6);
-        ne555State.capVoltage += (targetVoltage - ne555State.capVoltage) * clampedFraction;
-      } else {
-        ne555State.capVoltage = targetVoltage;
-      }
-    }
-  }
-
-  @Override
-  public void propagate(InstanceState state) {
-    final var ne555State = getOrCreateState(state);
-    ne555State.updateReferences(state);
-    final var attrs = state.getAttributeSet();
-    final var mode = getMode(attrs);
-    final var vcc = getVcc();
-    applyVcc(vcc, ne555State);
-
-    final var trigPortValue = (mode == MODE_MONOSTABLE) ? state.getPortValue(PIN_TRIG) : Value.UNKNOWN;
-    final var trigLow = (trigPortValue == Value.FALSE);
-
-    final var upperThreshold = getCtrlVoltage(ne555State);
-
-    final var now = System.nanoTime();
-    final var proj = state.getProject();
-    final var sim = proj != null ? proj.getSimulator() : null;
-    final var isSimRunning = sim != null && sim.isAutoPropagating();
-
-    final var dt = isSimRunning ? Math.min((now - ne555State.lastUpdateNanos) / 1e9, 0.1) : 0.0;
-    ne555State.lastUpdateNanos = now;
-
-    if (mode == MODE_ASTABLE) {
-      final var lowerThreshold = ne555State.vccVoltage / 3.0;
-      doAstable(state, ne555State, lowerThreshold, upperThreshold, dt);
-    } else {
-      doMonostable(state, ne555State, trigLow, upperThreshold, dt);
-    }
-
-    setOutputs(state, ne555State, vcc);
-  }
-
-  private static void doAstable(InstanceState state, NE555State ne555State,
-      double lowerThreshold, double upperThreshold, double dt) {
-    final var r2Fixed = FIXED_RFIXED;
-    final var r1 = getResistanceOhm(state.getAttributeSet());
-    final var vcc = ne555State.vccVoltage;
-
-    if (!ne555State.running && !ne555State.waiting) {
-      ne555State.capVoltage = lowerThreshold;
-      ne555State.output = true;
-      ne555State.disch = false;
-      ne555State.running = true;
-    }
-
-    if (ne555State.output && !ne555State.disch) {
-      updateCap(state.getAttributeSet(), ne555State, dt, vcc, r2Fixed + r1);
-      if (ne555State.capVoltage >= upperThreshold) {
-        ne555State.output = false;
-        ne555State.disch = true;
-      }
-    } else if (!ne555State.output && ne555State.disch) {
-      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, r1);
-      if (ne555State.capVoltage <= lowerThreshold) {
-        ne555State.output = true;
-        ne555State.disch = false;
-      }
-    }
-  }
-
-  private static void doMonostable(InstanceState state, NE555State ne555State,
-      boolean trigLow, double upperThreshold, double dt) {
-    final var resistance = getResistanceOhm(state.getAttributeSet());
-    final var capacitance = getCapFarad(state.getAttributeSet());
-
-    if (!ne555State.running && !ne555State.waiting) {
-      ne555State.output = false;
-      ne555State.disch = true;
-      ne555State.capVoltage = 0.0;
-      if (trigLow) {
-        ne555State.running = true;
-        ne555State.output = true;
-        ne555State.disch = false;
-        ne555State.activeElapsedSec = 0.0;
-      }
-    } else if (ne555State.running) {
-      ne555State.output = true;
-      ne555State.disch = false;
-      final var pulseWidth = 1.1 * resistance * capacitance;
-      ne555State.activeElapsedSec += dt;
-      final var vcc = ne555State.vccVoltage;
-      final var timeConstant = resistance * capacitance;
-      if (timeConstant > 1e-18) {
-        final var chargeFraction = 1.0 - Math.exp(-dt / timeConstant);
-        ne555State.capVoltage += (vcc - ne555State.capVoltage) * chargeFraction;
-      } else {
-        ne555State.capVoltage = vcc;
-      }
-      if (ne555State.capVoltage >= upperThreshold || ne555State.activeElapsedSec >= pulseWidth) {
-        ne555State.output = false;
-        ne555State.disch = true;
-        ne555State.running = false;
-        ne555State.waiting = true;
-      }
-    } else if (ne555State.waiting) {
-      ne555State.output = false;
-      ne555State.disch = true;
-      updateCap(state.getAttributeSet(), ne555State, dt, 0.0, 1000.0);
-      if (!trigLow && ne555State.capVoltage < 0.1) {
-        ne555State.waiting = false;
-      }
-    }
-  }
-
-  private static void setOutputs(InstanceState state, NE555State ne555State, double vcc) {
-    final var outputValue = ne555State.output ? Value.TRUE : Value.FALSE;
-    state.setPort(PIN_OUT, outputValue, 0);
   }
 }
