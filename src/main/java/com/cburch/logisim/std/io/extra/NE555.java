@@ -56,20 +56,20 @@ public class NE555 extends InstanceFactory {
       S.getter("ne555ModeAttr"),
       new AttributeOption[] { MODE_ASTABLE, MODE_MONOSTABLE });
 
-  public static final Attribute<Integer> ATTR_R1 = Attributes.forInteger("r1",
-      S.getter("ne555ResistorR1Attr"));
-  public static final Attribute<Integer> ATTR_C1 = Attributes.forInteger("c1",
-      S.getter("ne555CapacitorC1Attr"));
-
   public static final double FIXED_RFIXED = 1000.0; // 1 kOhm, fixed pull-up from VCC
 
-  public static final int MIN_R1_OHM = 100;
+  public static final int MIN_R1_OHM = 1000;
   public static final int MAX_R1_OHM = 10_000_000;
   public static final int DEFAULT_R1_OHM = 71_660;   // ~71.66 kOhm gives T ≈ 1 s
 
-  public static final int MIN_C1_UF = 1;
+  public static final int MIN_C1_UF = 10;
   public static final int MAX_C1_UF = 1000;
   public static final int DEFAULT_C1_UF = 10;
+
+  public static final Attribute<Integer> ATTR_R1 = Attributes.forIntegerRange(
+      "r1", S.getter("ne555ResistorR1Attr"), MIN_R1_OHM, MAX_R1_OHM);
+  public static final Attribute<Integer> ATTR_C1 = Attributes.forIntegerRange(
+      "c1", S.getter("ne555CapacitorC1Attr"), MIN_C1_UF, MAX_C1_UF);
 
   private static final double DEFAULT_VCC = 5.0;
   private static final double TIMER_INTERVAL_SEC = 0.010;
@@ -141,15 +141,17 @@ public class NE555 extends InstanceFactory {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-      var c = comp.get();
-      var s = simRef.get();
+      final var c = comp.get();
+      final var s = simRef.get();
+      if (c == null || s == null) {
+        stop();
+        return;
+      }
       if (!s.isAutoPropagating()) {
         lastUpdateNanos = System.nanoTime();
         return;
       }
-      if (c != null) {
-        c.fireInvalidated();
-      }
+      c.fireInvalidated();
       s.nudge();
     }
   }
@@ -281,7 +283,6 @@ public class NE555 extends InstanceFactory {
 
   @Override
   protected void instanceAttributeChanged(Instance instance, Attribute<?> attr) {
-    final var attrs = instance.getAttributeSet();
     if (attr == StdAttr.LABEL_LOC) {
       instance.computeLabelTextField(Instance.AVOID_SIDES);
     } else if (attr == ATTR_MODE) {
@@ -289,26 +290,8 @@ public class NE555 extends InstanceFactory {
       configurePorts(instance);
       instance.computeLabelTextField(Instance.AVOID_SIDES);
       instance.fireInvalidated();
-    } else if (attr == ATTR_R1) {
-      final var val = attrs.getValue(ATTR_R1);
-      if (val != null) {
-        final var clamped = Math.max(MIN_R1_OHM, Math.min(MAX_R1_OHM, val));
-        if (!val.equals(clamped)) {
-          attrs.setValue(ATTR_R1, clamped);
-        }
-      }
+    } else if (attr == ATTR_R1 || attr == ATTR_C1) {
       instance.fireInvalidated();
-    } else if (attr == ATTR_C1) {
-      final var val = attrs.getValue(ATTR_C1);
-      if (val != null) {
-        final var clamped = Math.max(MIN_C1_UF, Math.min(MAX_C1_UF, val));
-        if (!val.equals(clamped)) {
-          attrs.setValue(ATTR_C1, clamped);
-        }
-      }
-      instance.fireInvalidated();
-    } else if (attr == StdAttr.LABEL_LOC) {
-      instance.computeLabelTextField(Instance.AVOID_CENTER | Instance.AVOID_LEFT);
     }
   }
 
