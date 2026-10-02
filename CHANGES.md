@@ -3,6 +3,10 @@
 # Changes #
 
 * @dev (????-??-??)
+  * Added TTL 74123: dual retriggerable monostable multivibrator with reset (@Vadimatorik).
+  * Fixed ArrayIndexOutOfBoundsException during signal history deduplication and improved ChronoPanel buffer safety (@V-Zemlyakov).
+  * Added TTL 744060: 14-stage binary ripple counter (@Vadimatorik).
+  * Preserved pin and anchor edits in custom circuit appearances when saving [#3025] (@hewzhew).
   * Refreshed I/O-extra PlaRom state after contents changes and fixed state cloning
     [#1247] (@hewzhew).
   * Improved ChronoPanel and signal logging: added Tunnel component support, automatic selection for equivalent clocks,
