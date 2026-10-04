@@ -21,6 +21,7 @@ import java.awt.Cursor;
 import java.awt.Graphics;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.List;
 import java.util.Set;
 
 //
@@ -138,6 +139,10 @@ public abstract class Tool implements AttributeDefaultProvider {
 
   public boolean sharesSource(Tool other) {
     return this == other;
+  }
+
+  public List<String> getSearchAliases() {
+    return List.of();
   }
 
   @Override

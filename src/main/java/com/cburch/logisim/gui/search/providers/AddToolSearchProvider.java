@@ -72,14 +72,25 @@ public class AddToolSearchProvider extends IndexedSearchProvider {
       final var path = appendPath(parentPath, displayNameOf(library));
       for (final var tool : library.getTools()) {
         if (tool instanceof AddTool addTool && isPlaceable(addTool, project)) {
+          final var icon = new ToolIcon(addTool);
           candidates.add(
               new SearchCandidate(
                   addTool.getDisplayName(),
                   path,
-                  new ToolIcon(addTool),
+                  icon,
                   "",
                   true,
                   () -> project.setTool(addTool)));
+          for (final var alias : addTool.getSearchAliases()) {
+            candidates.add(
+                new SearchCandidate(
+                    alias,
+                    appendPath(path, addTool.getDisplayName()),
+                    icon,
+                    "",
+                    true,
+                    () -> project.setTool(addTool)));
+          }
         }
       }
       for (final var child : library.getLibraries()) {

@@ -13,24 +13,36 @@ import static com.cburch.logisim.util.Strings.S;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.MissingResourceException;
 import java.util.Objects;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.StringTokenizer;
 import javax.swing.JComponent;
 import javax.swing.JScrollPane;
 import javax.swing.UIManager;
 
 public class LocaleManager {
-  private static class LocaleGetter implements StringGetter {
+  public static class LocaleGetter implements StringGetter {
     final LocaleManager source;
     final String key;
 
     LocaleGetter(LocaleManager source, String key) {
       this.source = source;
       this.key = key;
+    }
+
+    public LocaleManager getSource() {
+      return source;
+    }
+
+    public String getKey() {
+      return key;
     }
 
     @Override
@@ -240,6 +252,78 @@ public class LocaleManager {
     final var repl = LocaleManager.repl;
     if (repl != null) ret = replaceAccents(ret, repl);
     return ret;
+  }
+
+  public String getOrNull(String key) {
+    return getOrNull(key, locale);
+  }
+
+  private static String getOrNull(String key, ResourceBundle bundle) {
+    try {
+      if (bundle != null && bundle.containsKey(key)) {
+        var ret = bundle.getString(key);
+        final var repl = LocaleManager.repl;
+        if (repl != null) ret = replaceAccents(ret, repl);
+        return ret;
+      }
+    } catch (MissingResourceException ignored) {
+      // Return null below
+    }
+    return null;
+  }
+
+  public List<String> getAliasesForKey(String key) {
+    final var aliasKey = key + ".aliases";
+    final var list = new LinkedHashSet<String>();
+
+    // Load base English aliases
+    try {
+      final var bundleName = dirName + "/strings/" + fileStart + "/" + fileStart;
+      final var baseBundle = ResourceBundle.getBundle(bundleName, Locale.ROOT);
+      addAliasesFromRaw(getOrNull(aliasKey, baseBundle), list);
+    } catch (MissingResourceException ignored) {
+      // not define aliases
+    }
+
+    // Merge active UI locale aliases
+    addAliasesFromRaw(getOrNull(aliasKey, locale), list);
+
+    // Merge aliases from all other locales
+    final var cur = getLocale();
+    final var options = getLocaleOptions();
+    if (options != null) {
+      for (final var opt : options) {
+        if (cur != null && opt.getLanguage().equalsIgnoreCase(cur.getLanguage())) {
+          continue;
+        }
+        try {
+          final var bundleName = dirName + "/strings/" + fileStart + "/" + fileStart;
+          final var optBundle = ResourceBundle.getBundle(bundleName, opt);
+          addAliasesFromRaw(getOrNull(aliasKey, optBundle), list);
+        } catch (MissingResourceException ignored) {
+          // Locale bundle not available
+        }
+      }
+    }
+    return List.copyOf(list);
+  }
+
+  private static void addAliasesFromRaw(String raw, Set<String> target) {
+    if (raw != null && !raw.isBlank()) {
+      for (final var part : raw.split(",")) {
+        final var trimmed = part.trim();
+        if (!trimmed.isEmpty()) {
+          target.add(trimmed);
+        }
+      }
+    }
+  }
+
+  public static List<String> getAliases(StringGetter getter) {
+    if (getter instanceof LocaleGetter lg) {
+      return lg.getSource().getAliasesForKey(lg.getKey());
+    }
+    return List.of();
   }
 
   public String get(String key, Object... args) {

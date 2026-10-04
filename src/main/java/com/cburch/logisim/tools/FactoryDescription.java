@@ -12,9 +12,12 @@ package com.cburch.logisim.tools;
 import com.cburch.logisim.comp.ComponentFactory;
 import com.cburch.logisim.util.IconsUtil;
 import com.cburch.logisim.util.LibraryUtil;
+import com.cburch.logisim.util.LocaleManager;
 import com.cburch.logisim.util.StringGetter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import javax.swing.Icon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +40,8 @@ public class FactoryDescription {
   private boolean factoryLoadAttempted;
   private ComponentFactory factory;
   private StringGetter toolTip;
+  private List<String> aliases = null;
+  private Locale aliasesLocale = null;
 
   public FactoryDescription(
       Class<? extends ComponentFactory> factoryClass, StringGetter displayName, Icon icon) {
@@ -74,6 +79,16 @@ public class FactoryDescription {
 
   public String getDisplayName() {
     return displayName.toString();
+  }
+
+  public List<String> getAliases() {
+    final var cur = LocaleManager.getLocale();
+    if (aliases != null && Objects.equals(aliasesLocale, cur)) {
+      return aliases;
+    }
+    aliases = LocaleManager.getAliases(displayName);
+    aliasesLocale = cur;
+    return aliases;
   }
 
   public ComponentFactory getFactory(Class<? extends Library> libraryClass) {

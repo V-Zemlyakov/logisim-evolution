@@ -9,22 +9,102 @@
 
 package com.cburch.logisim.gui.generic;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.cburch.logisim.file.Loader;
 import com.cburch.logisim.file.LogisimFile;
 import com.cburch.logisim.proj.Project;
+import com.cburch.logisim.std.ttl.TtlLibrary;
 import com.cburch.logisim.std.wiring.Pin;
+import com.cburch.logisim.std.wiring.WiringLibrary;
 import com.cburch.logisim.tools.AddTool;
 import com.cburch.logisim.tools.Library;
 import com.cburch.logisim.tools.Tool;
+import com.cburch.logisim.util.LocaleManager;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import javax.swing.tree.TreePath;
 import org.junit.jupiter.api.Test;
 
 class ProjectExplorerTest {
+
+  @Test
+  void filtersToolsByAliases() {
+    final var ttlLib = new TtlLibrary();
+    final var file = LogisimFile.createNew(new Loader(null), null);
+    file.addLibrary(ttlLib);
+
+    try {
+      final var project = new Project(file);
+      final var explorer = new ProjectExplorer(project, false);
+      final var model = (ProjectExplorerModel) explorer.getModel();
+
+      explorer.setFilterText("132");
+      assertTrue(model.isFiltering());
+
+      final var root = (ProjectExplorerLibraryNode) model.getRoot();
+      final var ttlNode = findLibraryNode(root, ttlLib);
+      assertNotNull(ttlNode);
+      assertTrue(model.getChildCount(ttlNode) > 0);
+
+      var found7424 = false;
+      for (var i = 0; i < model.getChildCount(ttlNode); i++) {
+        final var child = model.getChild(ttlNode, i);
+        if (child instanceof ProjectExplorerToolNode toolNode
+            && "7424".equals(toolNode.getValue().getName())) {
+          found7424 = true;
+          break;
+        }
+      }
+      assertTrue(found7424, "TTL 7424 must remain visible when filtering by alias '132'");
+    } finally {
+      file.stopAutosaveThread(false);
+    }
+  }
+
+  @Test
+  void filtersToolsByEnglishNameUnderRussianLocale() {
+    final var prevLocale = LocaleManager.getLocale();
+    try {
+      LocaleManager.setLocale(Locale.forLanguageTag("ru"));
+      final var wiringLib = new WiringLibrary();
+      final var file = LogisimFile.createNew(new Loader(null), null);
+      file.addLibrary(wiringLib);
+
+      try {
+        final var project = new Project(file);
+        final var explorer = new ProjectExplorer(project, false);
+        final var model = (ProjectExplorerModel) explorer.getModel();
+
+        explorer.setFilterText("probe");
+        assertTrue(model.isFiltering());
+
+        final var root = (ProjectExplorerLibraryNode) model.getRoot();
+        final var wiringNode = findLibraryNode(root, wiringLib);
+        assertNotNull(wiringNode);
+        assertTrue(model.getChildCount(wiringNode) > 0);
+
+        var foundProbe = false;
+        for (var i = 0; i < model.getChildCount(wiringNode); i++) {
+          final var child = model.getChild(wiringNode, i);
+          if (child instanceof ProjectExplorerToolNode toolNode
+              && "Probe".equals(toolNode.getValue().getName())) {
+            foundProbe = true;
+            break;
+          }
+        }
+        assertTrue(foundProbe, "Probe must remain visible in Russian locale when filtering by 'probe'");
+      } finally {
+        file.stopAutosaveThread(false);
+      }
+    } finally {
+      LocaleManager.setLocale(prevLocale);
+    }
+  }
 
   @Test
   void selectsToolsFromNestedLibraries() {

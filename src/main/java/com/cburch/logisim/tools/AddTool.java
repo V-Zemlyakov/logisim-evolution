@@ -42,6 +42,7 @@ import com.cburch.logisim.tools.key.KeyConfigurationEvent;
 import com.cburch.logisim.tools.key.KeyConfigurator;
 import com.cburch.logisim.util.AutoLabel;
 import com.cburch.logisim.util.SyntaxChecker;
+import com.cburch.logisim.util.LocaleManager;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Graphics;
@@ -53,6 +54,8 @@ import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 public class AddTool extends Tool implements Transferable, PropertyChangeListener {
   private class MyAttributeListener implements AttributeListener {
@@ -311,6 +314,24 @@ public class AddTool extends Tool implements Transferable, PropertyChangeListene
   public String getDisplayName() {
     final var desc = description;
     return desc == null ? factory.getDisplayName() : desc.getDisplayName();
+  }
+
+  @Override
+  public List<String> getSearchAliases() {
+    final var list = new LinkedHashSet<String>();
+    final var name = getName();
+    final var displayName = getDisplayName();
+    if (name != null && !name.isBlank() && !name.equalsIgnoreCase(displayName)) {
+      list.add(name);
+    }
+    if (description != null) {
+      list.addAll(description.getAliases());
+    } else if (factory != null) {
+      list.addAll(LocaleManager.getAliases(factory.getDisplayGetter()));
+    } else {
+      list.addAll(super.getSearchAliases());
+    }
+    return List.copyOf(list);
   }
 
   public ComponentFactory getFactory() {

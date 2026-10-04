@@ -152,7 +152,24 @@ class ProjectExplorerModel extends DefaultTreeModel implements ProjectListener {
   }
 
   private boolean nameMatchesFilter(TreeNode node) {
-    return matchesFilter(getDisplayName(node));
+    if (matchesFilter(getDisplayName(node))) {
+      return true;
+    }
+    if (node instanceof ProjectExplorerToolNode toolNode) {
+      final var tool = toolNode.getValue();
+      if (tool != null) {
+        final var name = tool.getName();
+        if (name != null && matchesFilter(name)) {
+          return true;
+        }
+        for (final var alias : tool.getSearchAliases()) {
+          if (matchesFilter(alias)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   private static String getDisplayName(TreeNode node) {
