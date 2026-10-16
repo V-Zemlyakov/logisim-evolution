@@ -3,6 +3,30 @@
 # Changes #
 
 * @dev (????-??-??)
+  * Added (V)HDL generators for SquareRoot and Exponentiator Components (@zOnlyKroks)
+  * Added an "On reset / load" attribute to the DIP switch, to keep switch positions across reset and reload
+    [#3066] (@Kejoki).
+  * Fixed FPGA short-circuit false positives for splitter paths sharing the same driver bit
+    [#3076] (@hewzhew).
+  * Unified the Logisim-evolution spelling in component appearance labels and Russian SoC messages
+    [#3008] (@hewzhew).
+  * Fixed FPGA net tracing through unconnected splitter bits and resulting false short-circuit errors
+    [#3063] (@hewzhew).
+  * Showed source line numbers and applicable set/sequence numbers for failed command-line test vectors [#3060] (@goudan789).
+  * Added TTL 74390: dual decade ripple counter (@Vadimatorik).
+  * Added NE555 Timer IC component with Astable and Monostable modes to Extra I/O library (@V-Zemlyakov).
+  * Optimized file dialog performance via startup background warmup and introduced scoped directory memory to isolate
+    circuit projects, image exports, and SoC software directories (@V-Zemlyakov).
+  * Added TTL 74123: dual retriggerable monostable multivibrator with reset (@Vadimatorik).
+  * Fixed ArrayIndexOutOfBoundsException during signal history deduplication and improved ChronoPanel buffer safety (@V-Zemlyakov).
+  * Added TTL 744060: 14-stage binary ripple counter (@Vadimatorik).
+  * Preserved pin and anchor edits in custom circuit appearances when saving [#3025] (@hewzhew).
+  * Refreshed I/O-extra PlaRom state after contents changes and fixed state cloning
+    [#1247] (@hewzhew).
+  * Improved ChronoPanel and signal logging: added Tunnel component support, automatic selection for equivalent clocks,
+    deduplication of tunnels, dynamic bus width updates, and UI stability fixes (@kevinawalsh, @V-Zemlyakov).
+  * Fixed cursor-centered zooming in the circuit appearance editor [#3018] (@hewzhew).
+  * Added TTL 74148: 8-line to 3-line priority encoder (@Vadimatorik).
   * Added native macOS file dialogs for open and save operations with standard file filtering support (@V-Zemlyakov).
   * Clarified unknown bits and output don't-care values in test vectors [#1123] (@hewzhew).
   * Fix macOS preferences dialogue focus and update tab labels (@Alperenu0).
@@ -10,6 +34,9 @@
     and preserved light-theme colors for saved files and Printer View [#2661] (@META-Xiao).
   * Fixed loss of custom appearance when merging circuits into a project (@V-Zemlyakov).
   * Fixed undo and redo after moving polygon and polyline vertices [#1042] (@hewzhew).
+  * Unified the spelling of "Logisim-evolution" in the Snap and Flatpak metadata and the German and French guide
+    [#3008] (@xjx06127).
+  * Fixed French translation mistake for `selCutItem` (@LPe7).
 
 * v5.0.0 (2026-09-12)
   * Improved visual representation of Pull Resistor component (@V-Zemlyakov).
