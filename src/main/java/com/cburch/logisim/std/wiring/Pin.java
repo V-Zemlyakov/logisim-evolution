@@ -730,7 +730,9 @@ public class Pin extends InstanceFactory {
       Attributes.forOption("behavior", S.getter("pinBehaviorAttr"),
           new AttributeOption[] { SIMPLE, TRISTATE, PULL_DOWN, PULL_UP });
   public static final Attribute<Long> ATTR_INITIAL =
-      Attributes.forHexLong("initial", S.getter("pinResetValue"));;
+      Attributes.forHexLong("initial", S.getter("pinResetValue"));
+  public static final Attribute<Color> ATTR_PIN_COLOR =
+      Attributes.forColor("pincolor", S.getter("pinColorAttr"));
 
   public static final Pin FACTORY = new Pin();
   private static final Font ICON_WIDTH_FONT = new Font("SansSerif", Font.BOLD, 9);
@@ -831,7 +833,7 @@ public class Pin extends InstanceFactory {
       instance.recomputeBounds();
       PinAttributes attrs = (PinAttributes) instance.getAttributeSet();
       instance.computeLabelTextField(Instance.AVOID_LEFT, pinLabelLoc(attrs.facing));
-    } else if (attr == Pin.ATTR_BEHAVIOR) {
+    } else if (attr == Pin.ATTR_BEHAVIOR || attr == ATTR_PIN_COLOR) {
       instance.fireInvalidated();
     }
   }
@@ -898,8 +900,13 @@ public class Pin extends InstanceFactory {
         int cur = 0;
         for (int k = 0; k < wid; k++) {
           if (radix == RadixOption.RADIX_2 && !isOutput) {
-            g.setColor(value.get(k).getColor());
-            g.fillOval(cx - 4, cy - 5, 9, 13);
+            if (wid > 1) {
+              // Full height bit-cell rectangle for multi-bit pins
+              g.setColor(value.get(k).getColor());
+              g.fillRect(cx - 5, cy - 8, 10, 16);
+            }
+            g.setColor(Color.WHITE);
+          } else if (wid == 1 && painter.getShowState()) {
             g.setColor(Color.WHITE);
           }
           GraphicsUtil.drawCenteredText(g, value.get(k).toDisplayString(), cx, cy);
@@ -992,12 +999,24 @@ public class Pin extends InstanceFactory {
         g.drawLine(-5, 0, 0, 0);
         GraphicsUtil.switchToWidth(g, 2);
       }
-      g.setColor(col);
-      int[] xPoints = new int[] {-rwidth, -15, -5, -15, -rwidth};
       int yBottom = rheight / 2;
       int yTop = -yBottom;
+      int[] xPoints = new int[] {-rwidth, -15, -5, -15, -rwidth};
       int[] yPoints = new int[] {yTop, yTop, 0, yBottom, yBottom};
+
+      // If single bit and show state, fill the whole arrow body with signal color
+      if (!isBus && painter.getShowState() && !isGhost) {
+        g.setColor(getState(painter).intendedValue.getColor());
+        g.fillPolygon(xPoints, yPoints, 5);
+      }
+
+      // Main outline: use user pinColor if specified, otherwise default theme color
+      Color outlineColor = (attrs.pinColor != null && attrs.pinColor.getAlpha() > 0)
+          ? attrs.pinColor
+          : col;
+      g.setColor(outlineColor);
       g.drawPolygon(xPoints, yPoints, 5);
+
       drawNewStyleValue(painter, rwidth, rheight, false, isGhost);
       g2.rotate(-rotation);
       g2.translate(-xpos, -ypos);
@@ -1056,12 +1075,24 @@ public class Pin extends InstanceFactory {
         g.drawLine(-3, 0, 0, 0);
         GraphicsUtil.switchToWidth(g, 2);
       }
-      g.setColor(col);
-      int[] xPoints = new int[] {-5, 10 - rwidth, -rwidth, 10 - rwidth, -5};
       int yTop = rheight / 2;
       int yBottom = -yTop;
+      int[] xPoints = new int[] {-5, 10 - rwidth, -rwidth, 10 - rwidth, -5};
       int[] yPoints = new int[] {yTop, yTop, 0, yBottom, yBottom};
+
+      // If single bit and show state, fill the whole arrow body with signal color
+      if (!isBus && painter.getShowState() && !isGhost) {
+        g.setColor(getState(painter).intendedValue.getColor());
+        g.fillPolygon(xPoints, yPoints, 5);
+      }
+
+      // Main outline: use user pinColor if specified, otherwise default theme color
+      Color outlineColor = (attrs.pinColor != null && attrs.pinColor.getAlpha() > 0)
+          ? attrs.pinColor
+          : col;
+      g.setColor(outlineColor);
       g.drawPolygon(xPoints, yPoints, 5);
+
       drawNewStyleValue(painter, rwidth, rheight, true, isGhost);
       g2.rotate(-rotation);
       g2.translate(-xpos, -ypos);
